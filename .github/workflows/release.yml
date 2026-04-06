@@ -40,8 +40,46 @@ jobs:
           name: voice-gateway-windows
           path: voice-gateway/target/release/voice-gateway.exe
 
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            pkg-config libgtk-3-dev libxdo-dev \
+            libayatana-appindicator3-dev libssl-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            voice-gateway/target
+          key: linux-cargo-${{ hashFiles('voice-gateway/Cargo.lock') }}
+
+      - name: Build release
+        working-directory: voice-gateway
+        run: cargo build --release
+
+      - name: Run tests
+        working-directory: voice-gateway
+        run: cargo test -- --test-threads=1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-gateway-linux
+          path: voice-gateway/target/release/voice-gateway
+
   release:
-    needs: [build-windows]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,11 +90,21 @@ jobs:
           name: voice-gateway-windows
           path: artifacts/windows
 
+      - name: Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: voice-gateway-linux
+          path: artifacts/linux
+
+      - name: Rename Linux binary
+        run: mv artifacts/linux/voice-gateway artifacts/linux/voice-gateway-linux
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/windows/voice-gateway.exe
+            artifacts/linux/voice-gateway-linux
           generate_release_notes: true
           draft: false
           prerelease: false

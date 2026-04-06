@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod clipboard;
 mod hotkey;
@@ -19,10 +19,14 @@ use chrono::{DateTime, Local};
 use crossbeam_channel::select;
 use eframe::egui;
 use global_hotkey::GlobalHotKeyEvent;
-use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use serde_json::json;
 use tray_icon::menu::{MenuEvent, MenuId};
+
+#[cfg(windows)]
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+#[cfg(windows)]
 use windows_sys::Win32::Foundation::HWND;
+#[cfg(windows)]
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     SetForegroundWindow, ShowWindowAsync, SW_HIDE, SW_RESTORE, SW_SHOW,
 };
@@ -80,6 +84,7 @@ struct NativeWindowController {
 }
 
 impl NativeWindowController {
+    #[cfg(windows)]
     fn register_from_frame(&self, frame: &eframe::Frame) {
         if self.hwnd.load(Ordering::SeqCst) != 0 {
             return;
@@ -91,6 +96,10 @@ impl NativeWindowController {
         }
     }
 
+    #[cfg(not(windows))]
+    fn register_from_frame(&self, _frame: &eframe::Frame) {}
+
+    #[cfg(windows)]
     fn show(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
         if hwnd == 0 { return; }
@@ -102,6 +111,10 @@ impl NativeWindowController {
         }
     }
 
+    #[cfg(not(windows))]
+    fn show(&self) {}
+
+    #[cfg(windows)]
     fn show_no_focus(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
         if hwnd == 0 { return; }
@@ -111,6 +124,10 @@ impl NativeWindowController {
         }
     }
 
+    #[cfg(not(windows))]
+    fn show_no_focus(&self) {}
+
+    #[cfg(windows)]
     fn hide(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
         if hwnd == 0 { return; }
@@ -118,6 +135,9 @@ impl NativeWindowController {
             ShowWindowAsync(hwnd as HWND, SW_HIDE);
         }
     }
+
+    #[cfg(not(windows))]
+    fn hide(&self) {}
 }
 
 struct VoiceGatewayApp {
