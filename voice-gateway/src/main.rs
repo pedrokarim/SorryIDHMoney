@@ -72,20 +72,9 @@ struct UiRequests {
     hotkey_pressed: AtomicBool,
 }
 
+#[derive(Default)]
 struct NativeWindowController {
     hwnd: AtomicIsize,
-    saved_x: std::sync::atomic::AtomicI32,
-    saved_y: std::sync::atomic::AtomicI32,
-}
-
-impl Default for NativeWindowController {
-    fn default() -> Self {
-        Self {
-            hwnd: AtomicIsize::new(0),
-            saved_x: std::sync::atomic::AtomicI32::new(100),
-            saved_y: std::sync::atomic::AtomicI32::new(100),
-        }
-    }
 }
 
 impl NativeWindowController {
@@ -93,7 +82,6 @@ impl NativeWindowController {
         if self.hwnd.load(Ordering::SeqCst) != 0 {
             return;
         }
-
         if let Ok(handle) = frame.window_handle() {
             if let RawWindowHandle::Win32(handle) = handle.as_raw() {
                 self.hwnd.store(handle.hwnd.get(), Ordering::SeqCst);
@@ -103,19 +91,10 @@ impl NativeWindowController {
 
     fn show(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
-        if hwnd == 0 {
-            return;
-        }
-
+        if hwnd == 0 { return; }
         unsafe {
-            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
-            };
             let hwnd = hwnd as HWND;
-            let x = self.saved_x.load(Ordering::SeqCst);
-            let y = self.saved_y.load(Ordering::SeqCst);
-            SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0,
-                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            ShowWindowAsync(hwnd, SW_SHOW);
             ShowWindowAsync(hwnd, SW_RESTORE);
             let _ = SetForegroundWindow(hwnd);
         }
@@ -123,24 +102,9 @@ impl NativeWindowController {
 
     fn hide(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
-        if hwnd == 0 {
-            return;
-        }
-
+        if hwnd == 0 { return; }
         unsafe {
-            use windows_sys::Win32::Foundation::RECT;
-            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                GetWindowRect, SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
-            };
-            let hwnd = hwnd as HWND;
-            // Sauvegarder la position actuelle
-            let mut rect: RECT = std::mem::zeroed();
-            GetWindowRect(hwnd, &mut rect);
-            self.saved_x.store(rect.left, Ordering::SeqCst);
-            self.saved_y.store(rect.top, Ordering::SeqCst);
-            // Deplacer hors ecran au lieu de SW_HIDE
-            SetWindowPos(hwnd, std::ptr::null_mut(), -9999, -9999, 0, 0,
-                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            ShowWindowAsync(hwnd as HWND, SW_HIDE);
         }
     }
 }
@@ -164,6 +128,7 @@ struct VoiceGatewayApp {
     ctx_registered: bool,
     settings: AppSettings,
     updater: updater::Updater,
+    shared_state: SharedState,
 }
 
 impl VoiceGatewayApp {
@@ -176,9 +141,9 @@ impl VoiceGatewayApp {
         ui_requests: Arc<UiRequests>,
         window_controller: Arc<NativeWindowController>,
         settings: AppSettings,
+        shared_state: SharedState,
     ) -> Self {
         let updater = updater::Updater::new();
-        // Vérifier les mises à jour au démarrage
         updater.check_for_updates();
 
         Self {
@@ -200,6 +165,7 @@ impl VoiceGatewayApp {
             ctx_registered: false,
             settings: settings.sanitized(),
             updater,
+            shared_state,
         }
     }
 
@@ -207,6 +173,9 @@ impl VoiceGatewayApp {
         let old_state = self.state.clone();
         let (new_state, actions) = old_state.transition(event);
         self.state = new_state;
+
+        // Synchroniser l'etat avec le thread hotkey
+        self.shared_state.store(state_to_u8(&self.state), Ordering::SeqCst);
 
         // Tracker quand on entre dans un etat avec timeout
         self.state_entered_at = match &self.state {
@@ -411,9 +380,24 @@ impl VoiceGatewayApp {
         }
 
         if self.ui_requests.hotkey_pressed.swap(false, Ordering::SeqCst) {
-            // Ne pas changer window_hidden ni prendre le focus
-            // Le hotkey doit juste déclencher l'action sans déranger l'app active
-            self.handle_gateway_event(GatewayEvent::HotkeyPressed);
+            // Le thread hotkey a déjà envoyé le message WS directement.
+            // On synchronise juste l'état local pour l'UI et le tray.
+            let thread_state = self.shared_state.load(Ordering::SeqCst);
+            self.state = match thread_state {
+                0 => GatewayState::Idle,
+                1 => GatewayState::WaitingForRecording,
+                2 => GatewayState::Recording,
+                3 => GatewayState::Processing,
+                _ => GatewayState::Idle,
+            };
+            self.state_entered_at = match &self.state {
+                GatewayState::WaitingForRecording | GatewayState::Processing => {
+                    Some(std::time::Instant::now())
+                }
+                _ => None,
+            };
+            self.tray.update_state(&self.state);
+            self.last_error = None;
         }
     }
 
@@ -1290,6 +1274,19 @@ fn request_repaint(shared_ctx: &SharedEguiContext) {
     }
 }
 
+/// Encodage de l'état pour partage atomique avec le thread.
+/// 0=Idle, 1=WaitingForRecording, 2=Recording, 3=Processing
+type SharedState = Arc<std::sync::atomic::AtomicU8>;
+
+fn state_to_u8(s: &GatewayState) -> u8 {
+    match s {
+        GatewayState::Idle => 0,
+        GatewayState::WaitingForRecording => 1,
+        GatewayState::Recording => 2,
+        GatewayState::Processing => 3,
+    }
+}
+
 fn spawn_ui_event_thread(
     show_item_id: MenuId,
     quit_item_id: MenuId,
@@ -1297,6 +1294,8 @@ fn spawn_ui_event_thread(
     ui_requests: Arc<UiRequests>,
     shared_ctx: SharedEguiContext,
     window_controller: Arc<NativeWindowController>,
+    shared_state: SharedState,
+    ws_sender: WsSender,
 ) {
     std::thread::spawn(move || {
         let menu_rx = MenuEvent::receiver();
@@ -1317,9 +1316,34 @@ fn spawn_ui_event_thread(
                 recv(hotkey_rx) -> event => match event {
                     Ok(event) if event.id() == hotkey_id
                         && event.state == global_hotkey::HotKeyState::Pressed => {
+                        // Envoyer la commande WebSocket DIRECTEMENT depuis ce thread
+                        // sans dépendre de eframe (qui peut ne pas tourner si SW_HIDE)
+                        let current = shared_state.load(Ordering::SeqCst);
+                        match current {
+                            0 => {
+                                // Idle -> start
+                                ws_sender.send(&json!({ "type": "start_recording" }));
+                                shared_state.store(1, Ordering::SeqCst); // -> WaitingForRecording
+                            }
+                            1 => {
+                                // WaitingForRecording -> cancel
+                                ws_sender.send(&json!({ "type": "cancel_recording" }));
+                                shared_state.store(0, Ordering::SeqCst); // -> Idle
+                            }
+                            2 => {
+                                // Recording -> stop
+                                ws_sender.send(&json!({ "type": "stop_recording" }));
+                                shared_state.store(3, Ordering::SeqCst); // -> Processing
+                            }
+                            3 => {
+                                // Processing -> cancel
+                                ws_sender.send(&json!({ "type": "cancel_recording" }));
+                                shared_state.store(0, Ordering::SeqCst); // -> Idle
+                            }
+                            _ => {}
+                        }
+                        // Aussi notifier eframe pour mettre à jour l'UI si visible
                         ui_requests.hotkey_pressed.store(true, Ordering::SeqCst);
-                        // Ne PAS appeler window_controller.show() ici
-                        // pour ne pas voler le focus de l'application active
                         request_repaint(&shared_ctx);
                     }
                     Ok(_) => {}
@@ -1356,6 +1380,7 @@ fn main() {
     let shared_ctx: SharedEguiContext = Arc::new(Mutex::new(None));
     let ui_requests = Arc::new(UiRequests::default());
     let window_controller = Arc::new(NativeWindowController::default());
+    let shared_state: SharedState = Arc::new(std::sync::atomic::AtomicU8::new(0));
 
     let (event_tx, event_rx) = mpsc::channel::<WsEvent>();
     let wake_ui: Arc<dyn Fn() + Send + Sync> = {
@@ -1371,6 +1396,8 @@ fn main() {
         ui_requests.clone(),
         shared_ctx.clone(),
         window_controller.clone(),
+        shared_state.clone(),
+        ws_sender.clone(),
     );
 
     let options = eframe::NativeOptions {
@@ -1393,6 +1420,7 @@ fn main() {
         ui_requests,
         window_controller,
         app_settings,
+        shared_state,
     );
 
     eframe::run_native(
