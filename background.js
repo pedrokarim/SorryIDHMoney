@@ -248,16 +248,6 @@ async function handleNativeMessage(msg) {
       }
 
       try {
-        // S'assurer que le content script est injecté
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['scripts/chatgpt-voice-content.js'],
-          });
-        } catch (_) {
-          // Déjà injecté, on ignore
-        }
-
         let response = await chrome.tabs.sendMessage(tab.id, { action });
 
         if (
@@ -407,16 +397,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         height: 400
       });
       return false;
-    case "voiceGateway_transcription":
-      console.log('[VoiceGateway] Transcription received:', message.text);
-      sendToGateway({
-        type: 'transcription',
-        text: message.text
-      });
-      notifyUI('voiceGateway_ui_transcription', { text: message.text });
-      notifyUI('voiceGateway_ui_status', { state: 'idle' });
-      voiceGatewayState = 'idle';
-      return false;
+    // voiceGateway_transcription supprimé : la transcription passe par sendResponse uniquement
     case "voiceGateway_error":
       console.log('[VoiceGateway] Error from content script:', message);
       sendToGateway({

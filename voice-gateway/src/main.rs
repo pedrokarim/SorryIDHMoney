@@ -65,11 +65,13 @@ struct HistoryEntry {
 }
 
 type SharedEguiContext = Arc<Mutex<Option<egui::Context>>>;
+type SharedHistory = Arc<Mutex<Vec<HistoryEntry>>>;
 
 #[derive(Default)]
 struct UiRequests {
     show_window: AtomicBool,
     hotkey_pressed: AtomicBool,
+    extension_connected: AtomicBool,
 }
 
 #[derive(Default)]
@@ -100,6 +102,15 @@ impl NativeWindowController {
         }
     }
 
+    fn show_no_focus(&self) {
+        let hwnd = self.hwnd.load(Ordering::SeqCst);
+        if hwnd == 0 { return; }
+        unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNOACTIVATE;
+            ShowWindowAsync(hwnd as HWND, SW_SHOWNOACTIVATE);
+        }
+    }
+
     fn hide(&self) {
         let hwnd = self.hwnd.load(Ordering::SeqCst);
         if hwnd == 0 { return; }
@@ -113,8 +124,8 @@ struct VoiceGatewayApp {
     state: GatewayState,
     tray: tray::Tray,
     hotkey_manager: hotkey::HotkeyManager,
-    event_rx: mpsc::Receiver<WsEvent>,
     ws_sender: WsSender,
+    shared_history: SharedHistory,
     history: Vec<HistoryEntry>,
     view_mode: ViewMode,
     total_words: usize,
@@ -135,13 +146,13 @@ impl VoiceGatewayApp {
     fn new(
         tray: tray::Tray,
         hotkey_manager: hotkey::HotkeyManager,
-        event_rx: mpsc::Receiver<WsEvent>,
         ws_sender: WsSender,
         shared_ctx: SharedEguiContext,
         ui_requests: Arc<UiRequests>,
         window_controller: Arc<NativeWindowController>,
         settings: AppSettings,
         shared_state: SharedState,
+        shared_history: SharedHistory,
     ) -> Self {
         let updater = updater::Updater::new();
         updater.check_for_updates();
@@ -150,9 +161,9 @@ impl VoiceGatewayApp {
             state: GatewayState::Idle,
             tray,
             hotkey_manager,
-            event_rx,
             ws_sender,
-            history: Vec::new(),
+            shared_history: shared_history.clone(),
+            history: shared_history.lock().map(|h| h.clone()).unwrap_or_default(),
             view_mode: ViewMode::Compact,
             total_words: 0,
             last_error: None,
@@ -226,25 +237,8 @@ impl VoiceGatewayApp {
             Action::SendStopRecording => {
                 self.ws_sender.send(&json!({ "type": "stop_recording" }));
             }
-            Action::PasteText(text) => {
-                let word_count = text.split_whitespace().count();
-                self.total_words += word_count;
-                self.history.push(HistoryEntry {
-                    text: text.clone(),
-                    timestamp: Local::now(),
-                    word_count,
-                });
-                self.enforce_history_limit();
-                self.save_history();
-
-                let result = if self.settings.auto_paste {
-                    clipboard::paste_text(&text, self.settings.paste_delay_ms)
-                } else {
-                    clipboard::copy_only(&text)
-                };
-                if let Err(err) = result {
-                    self.last_error = Some(format!("Impossible de coller le texte: {err}"));
-                }
+            Action::PasteText(_) => {
+                // Le thread de traitement WS gère le paste et l'historique directement.
             }
             Action::ShowError(msg) => {
                 self.last_error = Some(msg);
@@ -380,36 +374,37 @@ impl VoiceGatewayApp {
         }
 
         if self.ui_requests.hotkey_pressed.swap(false, Ordering::SeqCst) {
-            // Le thread hotkey a déjà envoyé le message WS directement.
-            // On synchronise juste l'état local pour l'UI et le tray.
-            let thread_state = self.shared_state.load(Ordering::SeqCst);
-            self.state = match thread_state {
-                0 => GatewayState::Idle,
-                1 => GatewayState::WaitingForRecording,
-                2 => GatewayState::Recording,
-                3 => GatewayState::Processing,
-                _ => GatewayState::Idle,
-            };
+            self.window_hidden = false;
+            self.last_error = None;
+        }
+    }
+
+    fn sync_from_shared_state(&mut self) {
+        self.extension_connected = self.ui_requests.extension_connected.load(Ordering::SeqCst);
+
+        let thread_state = self.shared_state.load(Ordering::SeqCst);
+        let new_state = match thread_state {
+            1 => GatewayState::WaitingForRecording,
+            2 => GatewayState::Recording,
+            3 => GatewayState::Processing,
+            _ => GatewayState::Idle,
+        };
+        if new_state != self.state {
+            self.state = new_state;
+            self.tray.update_state(&self.state);
             self.state_entered_at = match &self.state {
                 GatewayState::WaitingForRecording | GatewayState::Processing => {
                     Some(std::time::Instant::now())
                 }
                 _ => None,
             };
-            self.tray.update_state(&self.state);
-            self.last_error = None;
         }
-    }
 
-    fn poll_events(&mut self) {
-        while let Ok(event) = self.event_rx.try_recv() {
-            match event {
-                WsEvent::ClientConnected => self.extension_connected = true,
-                WsEvent::ClientDisconnected => {
-                    self.extension_connected = false;
-                    self.state = GatewayState::Idle;
-                }
-                WsEvent::Message(msg) => self.process_ws_message(msg),
+        // Sync historique depuis le thread de traitement
+        if let Ok(shared) = self.shared_history.lock() {
+            if shared.len() != self.history.len() {
+                self.history = shared.clone();
+                self.total_words = self.history.iter().map(|e| e.word_count).sum();
             }
         }
     }
@@ -733,7 +728,11 @@ impl VoiceGatewayApp {
                 if clear_resp.clicked() {
                     self.history.clear();
                     self.total_words = 0;
-                    self.save_history();
+                    if let Ok(mut shared) = self.shared_history.lock() {
+                        shared.clear();
+                    }
+                    let path = settings::history_path();
+                    let _ = std::fs::write(path, "[]");
                 }
 
                 let scroll_rect = egui::Rect::from_min_max(
@@ -1244,7 +1243,7 @@ impl eframe::App for VoiceGatewayApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.window_controller.register_from_frame(frame);
         self.register_egui_context(ctx);
-        self.poll_events();
+        self.sync_from_shared_state();
         self.process_ui_requests(ctx);
         self.check_timeouts();
 
@@ -1285,6 +1284,101 @@ fn state_to_u8(s: &GatewayState) -> u8 {
         GatewayState::Recording => 2,
         GatewayState::Processing => 3,
     }
+}
+
+/// Thread de traitement des events WebSocket.
+/// Tourne en permanence, indépendamment de eframe.
+/// Gère : connexion/déconnexion, transcription→paste, mise à jour de l'état.
+fn spawn_ws_processing_thread(
+    event_rx: mpsc::Receiver<WsEvent>,
+    shared_state: SharedState,
+    shared_history: SharedHistory,
+    ui_requests: Arc<UiRequests>,
+    auto_paste: bool,
+    paste_delay_ms: u64,
+    shared_ctx: SharedEguiContext,
+    history_limit: usize,
+) {
+    std::thread::spawn(move || {
+        loop {
+            let event = match event_rx.recv() {
+                Ok(e) => e,
+                Err(_) => break, // Channel fermé
+            };
+
+            match event {
+                WsEvent::ClientConnected => {
+                    ui_requests.extension_connected.store(true, Ordering::SeqCst);
+                    request_repaint(&shared_ctx);
+                }
+                WsEvent::ClientDisconnected => {
+                    ui_requests.extension_connected.store(false, Ordering::SeqCst);
+                    shared_state.store(0, Ordering::SeqCst); // Idle
+                    request_repaint(&shared_ctx);
+                }
+                WsEvent::Message(msg) => {
+                    let msg_type = msg.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                    match msg_type {
+                        "status" => {
+                            if msg.get("state").and_then(|s| s.as_str()) == Some("recording") {
+                                shared_state.store(2, Ordering::SeqCst); // Recording
+                                request_repaint(&shared_ctx);
+                            }
+                        }
+                        "cancelled" => {
+                            shared_state.store(0, Ordering::SeqCst); // Idle
+                            request_repaint(&shared_ctx);
+                        }
+                        "transcription" => {
+                            let text = msg.get("text")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_owned();
+                            if !text.is_empty() {
+                                // Paste le texte
+                                if auto_paste {
+                                    let _ = clipboard::paste_text(&text, paste_delay_ms);
+                                } else {
+                                    let _ = clipboard::copy_only(&text);
+                                }
+
+                                // Ajouter à l'historique partagé
+                                let word_count = text.split_whitespace().count();
+                                let entry = HistoryEntry {
+                                    text,
+                                    timestamp: Local::now(),
+                                    word_count,
+                                };
+                                if let Ok(mut history) = shared_history.lock() {
+                                    history.push(entry);
+                                    if history.len() > history_limit {
+                                        let overflow = history.len() - history_limit;
+                                        history.drain(0..overflow);
+                                    }
+                                    // Sauvegarder l'historique
+                                    let path = settings::history_path();
+                                    if let Some(parent) = path.parent() {
+                                        let _ = std::fs::create_dir_all(parent);
+                                    }
+                                    let _ = std::fs::write(
+                                        path,
+                                        serde_json::to_string(&*history).unwrap_or_default(),
+                                    );
+                                }
+                            }
+                            shared_state.store(0, Ordering::SeqCst); // Idle
+                            request_repaint(&shared_ctx);
+                        }
+                        "error" => {
+                            shared_state.store(0, Ordering::SeqCst); // Idle
+                            request_repaint(&shared_ctx);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    });
 }
 
 fn spawn_ui_event_thread(
@@ -1342,7 +1436,8 @@ fn spawn_ui_event_thread(
                             }
                             _ => {}
                         }
-                        // Aussi notifier eframe pour mettre à jour l'UI si visible
+                        // Montrer la fenêtre sans voler le focus + notifier eframe
+                        window_controller.show_no_focus();
                         ui_requests.hotkey_pressed.store(true, Ordering::SeqCst);
                         request_repaint(&shared_ctx);
                     }
@@ -1382,12 +1477,26 @@ fn main() {
     let window_controller = Arc::new(NativeWindowController::default());
     let shared_state: SharedState = Arc::new(std::sync::atomic::AtomicU8::new(0));
 
+    let shared_history: SharedHistory = Arc::new(Mutex::new(Vec::new()));
+
     let (event_tx, event_rx) = mpsc::channel::<WsEvent>();
     let wake_ui: Arc<dyn Fn() + Send + Sync> = {
         let shared_ctx = shared_ctx.clone();
         Arc::new(move || request_repaint(&shared_ctx))
     };
     let ws_sender = ws_server::start_server(event_tx, wake_ui);
+
+    // Thread de traitement WS : gère transcription/paste indépendamment de eframe
+    spawn_ws_processing_thread(
+        event_rx,
+        shared_state.clone(),
+        shared_history.clone(),
+        ui_requests.clone(),
+        app_settings.auto_paste,
+        app_settings.paste_delay_ms,
+        shared_ctx.clone(),
+        app_settings.history_limit,
+    );
 
     spawn_ui_event_thread(
         show_item_id,
@@ -1414,13 +1523,13 @@ fn main() {
     let app = VoiceGatewayApp::new(
         tray,
         hotkey_manager,
-        event_rx,
         ws_sender,
         shared_ctx,
         ui_requests,
         window_controller,
         app_settings,
         shared_state,
+        shared_history,
     );
 
     eframe::run_native(

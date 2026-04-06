@@ -400,12 +400,6 @@ async function stopRecording() {
   await sleep(200);
   clearComposerText();
 
-  // Envoyer la transcription au background
-  chrome.runtime.sendMessage({
-    action: 'voiceGateway_transcription',
-    text: text
-  });
-
   return { type: 'transcription', text };
 }
 
