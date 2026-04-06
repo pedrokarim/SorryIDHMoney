@@ -72,9 +72,20 @@ struct UiRequests {
     hotkey_pressed: AtomicBool,
 }
 
-#[derive(Default)]
 struct NativeWindowController {
     hwnd: AtomicIsize,
+    saved_x: std::sync::atomic::AtomicI32,
+    saved_y: std::sync::atomic::AtomicI32,
+}
+
+impl Default for NativeWindowController {
+    fn default() -> Self {
+        Self {
+            hwnd: AtomicIsize::new(0),
+            saved_x: std::sync::atomic::AtomicI32::new(100),
+            saved_y: std::sync::atomic::AtomicI32::new(100),
+        }
+    }
 }
 
 impl NativeWindowController {
@@ -97,9 +108,15 @@ impl NativeWindowController {
         }
 
         unsafe {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
+            };
             let hwnd = hwnd as HWND;
+            let x = self.saved_x.load(Ordering::SeqCst);
+            let y = self.saved_y.load(Ordering::SeqCst);
+            SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             ShowWindowAsync(hwnd, SW_RESTORE);
-            ShowWindowAsync(hwnd, SW_SHOW);
             let _ = SetForegroundWindow(hwnd);
         }
     }
@@ -111,7 +128,19 @@ impl NativeWindowController {
         }
 
         unsafe {
-            ShowWindowAsync(hwnd as HWND, SW_HIDE);
+            use windows_sys::Win32::Foundation::RECT;
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                GetWindowRect, SetWindowPos, SWP_NOSIZE, SWP_NOZORDER, SWP_NOACTIVATE,
+            };
+            let hwnd = hwnd as HWND;
+            // Sauvegarder la position actuelle
+            let mut rect: RECT = std::mem::zeroed();
+            GetWindowRect(hwnd, &mut rect);
+            self.saved_x.store(rect.left, Ordering::SeqCst);
+            self.saved_y.store(rect.top, Ordering::SeqCst);
+            // Deplacer hors ecran au lieu de SW_HIDE
+            SetWindowPos(hwnd, std::ptr::null_mut(), -9999, -9999, 0, 0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
     }
 }
@@ -119,7 +148,7 @@ impl NativeWindowController {
 struct VoiceGatewayApp {
     state: GatewayState,
     tray: tray::Tray,
-    _hotkey_manager: hotkey::HotkeyManager,
+    hotkey_manager: hotkey::HotkeyManager,
     event_rx: mpsc::Receiver<WsEvent>,
     ws_sender: WsSender,
     history: Vec<HistoryEntry>,
@@ -127,6 +156,7 @@ struct VoiceGatewayApp {
     total_words: usize,
     last_error: Option<String>,
     window_hidden: bool,
+    state_entered_at: Option<std::time::Instant>,
     extension_connected: bool,
     shared_ctx: SharedEguiContext,
     ui_requests: Arc<UiRequests>,
@@ -154,7 +184,7 @@ impl VoiceGatewayApp {
         Self {
             state: GatewayState::Idle,
             tray,
-            _hotkey_manager: hotkey_manager,
+            hotkey_manager,
             event_rx,
             ws_sender,
             history: Vec::new(),
@@ -162,6 +192,7 @@ impl VoiceGatewayApp {
             total_words: 0,
             last_error: None,
             window_hidden: false,
+            state_entered_at: None,
             extension_connected: false,
             shared_ctx,
             ui_requests,
@@ -177,8 +208,40 @@ impl VoiceGatewayApp {
         let (new_state, actions) = old_state.transition(event);
         self.state = new_state;
 
+        // Tracker quand on entre dans un etat avec timeout
+        self.state_entered_at = match &self.state {
+            GatewayState::WaitingForRecording | GatewayState::Processing => {
+                Some(std::time::Instant::now())
+            }
+            _ => None,
+        };
+
         for action in actions {
             self.execute_action(action);
+        }
+    }
+
+    fn check_timeouts(&mut self) {
+        use std::time::Duration;
+        const WAITING_TIMEOUT: Duration = Duration::from_secs(10);
+        const PROCESSING_TIMEOUT: Duration = Duration::from_secs(20);
+
+        let Some(entered_at) = self.state_entered_at else { return };
+        let elapsed = entered_at.elapsed();
+
+        let timed_out = match self.state {
+            GatewayState::WaitingForRecording => elapsed > WAITING_TIMEOUT,
+            GatewayState::Processing => elapsed > PROCESSING_TIMEOUT,
+            _ => false,
+        };
+
+        if timed_out {
+            let msg = match self.state {
+                GatewayState::WaitingForRecording => "Delai depasse : l'extension n'a pas repondu.",
+                GatewayState::Processing => "Delai depasse : transcription non recue.",
+                _ => unreachable!(),
+            };
+            self.handle_gateway_event(GatewayEvent::Error(msg.to_owned()));
         }
     }
 
@@ -415,7 +478,7 @@ impl VoiceGatewayApp {
                 if self.extension_connected {
                     (
                         "Pret a dicter".to_owned(),
-                        "Pont local actif, vous pouvez lancer la capture avec Ctrl+Alt+V.".to_owned(),
+                        format!("Pont local actif, vous pouvez lancer la capture avec {}.", self.settings.hotkey),
                         ACCENT_MINT,
                         "Actif",
                     )
@@ -437,7 +500,7 @@ impl VoiceGatewayApp {
             ),
             GatewayState::Recording => (
                 "Ecoute en cours".to_owned(),
-                "Parlez normalement. Appuyez encore sur Ctrl+Alt+V pour envoyer.".to_owned(),
+                format!("Parlez normalement. Appuyez encore sur {} pour envoyer.", self.settings.hotkey),
                 ACCENT_SKY,
                 "Micro ouvert",
             ),
@@ -792,6 +855,27 @@ impl VoiceGatewayApp {
                                 }
                             }
                         });
+
+                        ui.add_space(18.0);
+                        self.settings_card(ui, "Raccourci clavier", "Combinaison de touches pour demarrer/stopper la dictee.");
+                        ui.add_space(8.0);
+                        let old_hotkey = self.settings.hotkey.clone();
+                        settings_changed |= ui
+                            .text_edit_singleline(&mut self.settings.hotkey)
+                            .changed();
+                        if self.settings.hotkey != old_hotkey && !self.settings.hotkey.trim().is_empty() {
+                            match self.hotkey_manager.re_register(&self.settings.hotkey) {
+                                Ok(()) => {
+                                    self.last_error = None;
+                                    // Mettre a jour le hotkey_id dans le thread tray/hotkey
+                                    // via l'Arc<AtomicU32> partage
+                                }
+                                Err(e) => {
+                                    self.last_error = Some(format!("Raccourci invalide: {}", e));
+                                    self.settings.hotkey = old_hotkey;
+                                }
+                            }
+                        }
 
                         ui.add_space(18.0);
                         self.settings_card(ui, "Collage automatique", "Colle automatiquement le texte transcrit dans l'application active.");
@@ -1178,13 +1262,17 @@ impl eframe::App for VoiceGatewayApp {
         self.register_egui_context(ctx);
         self.poll_events();
         self.process_ui_requests(ctx);
+        self.check_timeouts();
+
+        // Toujours demander un repaint, MEME quand la fenêtre est cachée,
+        // sinon les events hotkey/tray ne sont plus traités
+        ctx.request_repaint_after(std::time::Duration::from_millis(100));
 
         if self.window_hidden {
             return;
         }
 
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(self.active_view_size()));
-        ctx.request_repaint_after(std::time::Duration::from_millis(16));
 
         match self.view_mode {
             ViewMode::Compact => self.draw_compact(ctx),
@@ -1257,12 +1345,13 @@ fn main() {
         std::process::exit(0);
     }
 
+    let app_settings = AppSettings::load();
     let tray = tray::Tray::new().expect("Failed to create tray icon");
-    let hotkey_manager = hotkey::HotkeyManager::new().expect("Failed to register global hotkey");
+    let hotkey_manager = hotkey::HotkeyManager::new(&app_settings.hotkey)
+        .expect("Failed to register global hotkey");
     let show_item_id = tray.show_item_id().clone();
     let quit_item_id = tray.quit_item_id().clone();
     let hotkey_id = hotkey_manager.hotkey_id();
-    let settings = AppSettings::load();
 
     let shared_ctx: SharedEguiContext = Arc::new(Mutex::new(None));
     let ui_requests = Arc::new(UiRequests::default());
@@ -1303,7 +1392,7 @@ fn main() {
         shared_ctx,
         ui_requests,
         window_controller,
-        settings,
+        app_settings,
     );
 
     eframe::run_native(

@@ -27,6 +27,8 @@ pub struct AppSettings {
     pub history_limit: usize,
     #[serde(default = "default_auto_paste")]
     pub auto_paste: bool,
+    #[serde(default = "default_hotkey")]
+    pub hotkey: String,
 }
 
 impl Default for AppSettings {
@@ -37,6 +39,7 @@ impl Default for AppSettings {
             paste_delay_ms: default_paste_delay_ms(),
             history_limit: default_history_limit(),
             auto_paste: default_auto_paste(),
+            hotkey: default_hotkey(),
         }
     }
 }
@@ -69,6 +72,10 @@ impl AppSettings {
         self.extension_id = self.extension_id.trim().to_owned();
         self.paste_delay_ms = self.paste_delay_ms.clamp(50, 600);
         self.history_limit = self.history_limit.clamp(10, 200);
+        self.hotkey = self.hotkey.trim().to_owned();
+        if self.hotkey.is_empty() || crate::hotkey::parse_hotkey_string(&self.hotkey).is_err() {
+            self.hotkey = default_hotkey();
+        }
         self
     }
 }
@@ -98,6 +105,10 @@ fn default_history_limit() -> usize {
 
 fn default_auto_paste() -> bool {
     true
+}
+
+fn default_hotkey() -> String {
+    "Ctrl+Alt+V".to_owned()
 }
 
 #[cfg(test)]

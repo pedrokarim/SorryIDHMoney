@@ -85,6 +85,12 @@ impl GatewayState {
                 vec![Action::UpdateTrayIdle],
             ),
 
+            // Traitement + hotkey -> annuler manuellement
+            (GatewayState::Processing, GatewayEvent::HotkeyPressed) => (
+                GatewayState::Idle,
+                vec![Action::SendCancelRecording, Action::UpdateTrayIdle],
+            ),
+
             // Traitement + transcription reçue -> coller + idle
             (GatewayState::Processing, GatewayEvent::TranscriptionReceived(text)) => (
                 GatewayState::Idle,
@@ -225,10 +231,11 @@ mod tests {
     }
 
     #[test]
-    fn processing_ignores_hotkey() {
+    fn processing_hotkey_cancels() {
         let (state, actions) = GatewayState::Processing.transition(GatewayEvent::HotkeyPressed);
-        assert_eq!(state, GatewayState::Processing);
-        assert!(actions.is_empty());
+        assert_eq!(state, GatewayState::Idle);
+        assert!(action_types(&actions).contains(&"SendCancel"));
+        assert!(action_types(&actions).contains(&"TrayIdle"));
     }
 
     // === Flow complet ===
