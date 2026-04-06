@@ -13,7 +13,7 @@ enigo = "0.3"
 log = "0.4"
 env_logger = "0.11"
 eframe = "0.31"
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 tungstenite = "0.26"
 crossbeam-channel = "0.5"
 raw-window-handle = "0.6"

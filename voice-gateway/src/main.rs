@@ -56,7 +56,7 @@ enum ViewMode {
     Settings,
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct HistoryEntry {
     text: String,
     timestamp: DateTime<Local>,
@@ -196,8 +196,14 @@ impl VoiceGatewayApp {
                     word_count,
                 });
                 self.enforce_history_limit();
+                self.save_history();
 
-                if let Err(err) = clipboard::paste_text(&text, self.settings.paste_delay_ms) {
+                let result = if self.settings.auto_paste {
+                    clipboard::paste_text(&text, self.settings.paste_delay_ms)
+                } else {
+                    clipboard::copy_only(&text)
+                };
+                if let Err(err) = result {
                     self.last_error = Some(format!("Impossible de coller le texte: {err}"));
                 }
             }
@@ -251,6 +257,27 @@ impl VoiceGatewayApp {
         }
     }
 
+    fn load_history(&mut self) {
+        let path = settings::history_path();
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            if let Ok(entries) = serde_json::from_str::<Vec<HistoryEntry>>(&content) {
+                self.history = entries;
+                self.total_words = self.history.iter().map(|e| e.word_count).sum();
+                self.enforce_history_limit();
+            }
+        }
+    }
+
+    fn save_history(&self) {
+        let path = settings::history_path();
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(json) = serde_json::to_string(&self.history) {
+            let _ = std::fs::write(path, json);
+        }
+    }
+
     fn register_egui_context(&mut self, ctx: &egui::Context) {
         if self.ctx_registered {
             return;
@@ -260,6 +287,7 @@ impl VoiceGatewayApp {
             *guard = Some(ctx.clone());
             self.ctx_registered = true;
         }
+        self.load_history();
     }
 
     fn persist_settings(&mut self) {
@@ -313,8 +341,8 @@ impl VoiceGatewayApp {
         }
 
         if self.ui_requests.hotkey_pressed.swap(false, Ordering::SeqCst) {
-            self.window_hidden = false;
-            ctx.request_repaint();
+            // Ne pas changer window_hidden ni prendre le focus
+            // Le hotkey doit juste déclencher l'action sans déranger l'app active
             self.handle_gateway_event(GatewayEvent::HotkeyPressed);
         }
     }
@@ -650,6 +678,7 @@ impl VoiceGatewayApp {
                 if clear_resp.clicked() {
                     self.history.clear();
                     self.total_words = 0;
+                    self.save_history();
                 }
 
                 let scroll_rect = egui::Rect::from_min_max(
@@ -757,15 +786,24 @@ impl VoiceGatewayApp {
                         });
 
                         ui.add_space(18.0);
-                        self.settings_card(ui, "Collage", "Le delai laisse au presse-papiers avant Ctrl+V.");
+                        self.settings_card(ui, "Collage automatique", "Colle automatiquement le texte transcrit dans l'application active.");
                         ui.add_space(8.0);
                         settings_changed |= ui
-                            .add(
-                                egui::Slider::new(&mut self.settings.paste_delay_ms, 50..=600)
-                                    .suffix(" ms")
-                                    .show_value(true),
-                            )
+                            .checkbox(&mut self.settings.auto_paste, "Activer le collage automatique (Ctrl+V)")
                             .changed();
+
+                        if self.settings.auto_paste {
+                            ui.add_space(8.0);
+                            ui.label(egui::RichText::new("Delai avant collage").size(11.0).color(TEXT_SECONDARY));
+                            ui.add_space(4.0);
+                            settings_changed |= ui
+                                .add(
+                                    egui::Slider::new(&mut self.settings.paste_delay_ms, 50..=600)
+                                        .suffix(" ms")
+                                        .show_value(true),
+                                )
+                                .changed();
+                        }
 
                         ui.add_space(18.0);
                         self.settings_card(ui, "Historique", "Combien d'elements garder dans la session.");
@@ -1138,7 +1176,8 @@ fn spawn_ui_event_thread(
                     Ok(event) if event.id() == hotkey_id
                         && event.state == global_hotkey::HotKeyState::Pressed => {
                         ui_requests.hotkey_pressed.store(true, Ordering::SeqCst);
-                        window_controller.show();
+                        // Ne PAS appeler window_controller.show() ici
+                        // pour ne pas voler le focus de l'application active
                         request_repaint(&shared_ctx);
                     }
                     Ok(_) => {}
