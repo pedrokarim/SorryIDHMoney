@@ -5,6 +5,7 @@ mod hotkey;
 mod settings;
 mod state;
 mod tray;
+mod updater;
 mod ws_server;
 
 use std::f32::consts::TAU;
@@ -132,6 +133,7 @@ struct VoiceGatewayApp {
     window_controller: Arc<NativeWindowController>,
     ctx_registered: bool,
     settings: AppSettings,
+    updater: updater::Updater,
 }
 
 impl VoiceGatewayApp {
@@ -145,6 +147,10 @@ impl VoiceGatewayApp {
         window_controller: Arc<NativeWindowController>,
         settings: AppSettings,
     ) -> Self {
+        let updater = updater::Updater::new();
+        // Vérifier les mises à jour au démarrage
+        updater.check_for_updates();
+
         Self {
             state: GatewayState::Idle,
             tray,
@@ -162,6 +168,7 @@ impl VoiceGatewayApp {
             window_controller,
             ctx_registered: false,
             settings: settings.sanitized(),
+            updater,
         }
     }
 
@@ -529,7 +536,8 @@ impl VoiceGatewayApp {
             .frame(egui::Frame::new().fill(egui::Color32::TRANSPARENT).inner_margin(0.0))
             .show(ctx, |ui| {
                 self.draw_background(ui);
-                self.draw_topbar(ui, "Voice Gateway", "Capture vocale locale", false, ViewMode::Compact);
+                let version_label = format!("v{}", updater::Updater::current_version());
+                self.draw_topbar(ui, "Voice Gateway", &version_label, false, ViewMode::Compact);
 
                 let t = ctx.input(|input| input.time);
                 let (status_title, status_subtitle, accent, badge) = self.state_copy(t);
@@ -818,6 +826,52 @@ impl VoiceGatewayApp {
 
                         if settings_changed {
                             self.persist_settings();
+                        }
+
+                        // === Mise à jour ===
+                        ui.add_space(18.0);
+                        self.settings_card(ui, "Mise a jour", &format!("Version actuelle : v{}", updater::Updater::current_version()));
+                        ui.add_space(8.0);
+
+                        match self.updater.get_status() {
+                            updater::UpdateStatus::Idle | updater::UpdateStatus::UpToDate => {
+                                ui.horizontal(|ui| {
+                                    if ui.button("Verifier les mises a jour").clicked() {
+                                        self.updater.check_for_updates();
+                                    }
+                                    if matches!(self.updater.get_status(), updater::UpdateStatus::UpToDate) {
+                                        ui.label(egui::RichText::new("A jour").size(11.0).color(ACCENT_MINT));
+                                    }
+                                });
+                            }
+                            updater::UpdateStatus::Checking => {
+                                ui.label(egui::RichText::new("Verification en cours...").size(11.0).color(TEXT_SECONDARY));
+                            }
+                            updater::UpdateStatus::Available(ref info) => {
+                                ui.label(egui::RichText::new(format!("v{} disponible", info.version)).size(12.0).color(ACCENT_GOLD));
+                                ui.add_space(4.0);
+                                if ui.button("Telecharger et installer").clicked() {
+                                    self.updater.download_and_install();
+                                }
+                            }
+                            updater::UpdateStatus::Downloading(progress) => {
+                                ui.label(egui::RichText::new(format!("Telechargement... {}%", progress)).size(11.0).color(ACCENT_SKY));
+                                ui.add(egui::ProgressBar::new(progress as f32 / 100.0));
+                            }
+                            updater::UpdateStatus::ReadyToInstall(_) => {
+                                ui.label(egui::RichText::new("Pret a installer").size(12.0).color(ACCENT_MINT));
+                                ui.add_space(4.0);
+                                if ui.button("Redemarrer et mettre a jour").clicked() {
+                                    self.updater.apply_update();
+                                }
+                            }
+                            updater::UpdateStatus::Error(ref msg) => {
+                                ui.label(egui::RichText::new(format!("Erreur: {}", msg)).size(11.0).color(ACCENT_RED));
+                                ui.add_space(4.0);
+                                if ui.button("Reessayer").clicked() {
+                                    self.updater.check_for_updates();
+                                }
+                            }
                         }
 
                         ui.add_space(20.0);

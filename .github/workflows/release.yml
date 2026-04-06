@@ -1,0 +1,62 @@
+name: Build & Release Voice Gateway
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            voice-gateway/target
+          key: windows-cargo-${{ hashFiles('voice-gateway/Cargo.lock') }}
+
+      - name: Build release
+        working-directory: voice-gateway
+        run: cargo build --release
+
+      - name: Run tests
+        working-directory: voice-gateway
+        run: cargo test -- --test-threads=1
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-gateway-windows
+          path: voice-gateway/target/release/voice-gateway.exe
+
+  release:
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: voice-gateway-windows
+          path: artifacts/windows
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/windows/voice-gateway.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false

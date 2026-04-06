@@ -16,5 +16,7 @@ eframe = "0.31"
 chrono = { version = "0.4", features = ["serde"] }
 tungstenite = "0.26"
 crossbeam-channel = "0.5"
+ureq = { version = "2", features = ["json"] }
+semver = "1"
 raw-window-handle = "0.6"
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
