@@ -1,3 +1,6 @@
 
 scripts/content.js
 manifest.json
+
+# Rust build artifacts
+voice-gateway/target/

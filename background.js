@@ -97,9 +97,262 @@ async function getAnilistMediaInfo(search) {
   return result;
 }
 
+// === Voice Gateway Bridge (WebSocket) ===
+const WS_URL = 'ws://127.0.0.1:59210';
+const VOICE_GATEWAY_ALARM = 'voiceGatewayReconnect';
+let ws = null;
+let wsReconnectTimer = null;
+let voiceGatewayCancelRequested = false;
+
+function connectToGateway() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  try {
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      console.log('[VoiceGateway] WebSocket connected');
+      voiceGatewayState = 'idle';
+      notifyUI('voiceGateway_ui_status', { state: 'idle' });
+      if (wsReconnectTimer) {
+        clearInterval(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        console.log('[VoiceGateway] From gateway:', msg);
+        handleNativeMessage(msg);
+      } catch (e) {
+        console.error('[VoiceGateway] Invalid message:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[VoiceGateway] WebSocket disconnected');
+      ws = null;
+      voiceGatewayState = 'disconnected';
+      notifyUI('voiceGateway_ui_status', { state: 'disconnected' });
+      scheduleReconnect();
+    };
+
+    ws.onerror = (e) => {
+      console.log('[VoiceGateway] WebSocket error (app not running?)');
+      ws = null;
+      voiceGatewayState = 'disconnected';
+      notifyUI('voiceGateway_ui_status', { state: 'disconnected' });
+      scheduleReconnect();
+    };
+  } catch (e) {
+    console.error('[VoiceGateway] Failed to connect:', e);
+    ws = null;
+    voiceGatewayState = 'disconnected';
+    scheduleReconnect();
+  }
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) return;
+  wsReconnectTimer = setInterval(() => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) {
+      connectToGateway();
+    } else {
+      clearInterval(wsReconnectTimer);
+      wsReconnectTimer = null;
+    }
+  }, 5000);
+}
+
+function ensureGatewayConnection() {
+  if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+    connectToGateway();
+  }
+}
+
+function installGatewayAlarm() {
+  chrome.alarms.create(VOICE_GATEWAY_ALARM, {
+    periodInMinutes: 0.5,
+  });
+}
+
+function sendToGateway(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+
+async function findOrOpenChatGptTab() {
+  const tabs = await chrome.tabs.query({
+    url: ['https://chatgpt.com/*', 'https://chat.openai.com/*']
+  });
+
+  if (tabs.length > 0) {
+    return tabs[0];
+  }
+
+  // Aucun onglet ChatGPT ouvert : en créer un
+  console.log('[VoiceGateway] No ChatGPT tab found, opening one...');
+  const newTab = await chrome.tabs.create({
+    url: 'https://chatgpt.com/',
+    active: false, // Ne pas voler le focus
+    pinned: true,  // Épingler pour pas qu'il gêne
+  });
+
+  // Attendre que la page soit chargée
+  return new Promise((resolve) => {
+    function onUpdated(tabId, changeInfo) {
+      if (tabId === newTab.id && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        // Petit délai pour laisser le JS de ChatGPT s'initialiser
+        setTimeout(() => resolve(newTab), 2000);
+      }
+    }
+    chrome.tabs.onUpdated.addListener(onUpdated);
+
+    // Timeout de sécurité (15s)
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      resolve(newTab);
+    }, 15000);
+  });
+}
+
+async function handleNativeMessage(msg) {
+  switch (msg.type) {
+    case 'start_recording':
+    case 'stop_recording':
+    case 'cancel_recording': {
+      const tab = await findOrOpenChatGptTab();
+
+      const action = msg.type === 'start_recording'
+        ? 'voiceGateway_startRecording'
+        : msg.type === 'stop_recording'
+          ? 'voiceGateway_stopRecording'
+          : 'voiceGateway_cancelRecording';
+
+      if (msg.type === 'start_recording') {
+        voiceGatewayCancelRequested = false;
+      } else if (msg.type === 'cancel_recording') {
+        voiceGatewayCancelRequested = true;
+      }
+
+      if (msg.type !== 'cancel_recording') {
+        voiceGatewayState = msg.type === 'start_recording' ? 'waiting' : 'processing';
+        notifyUI('voiceGateway_ui_status', {
+          state: voiceGatewayState
+        });
+      }
+
+      try {
+        // S'assurer que le content script est injecté
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ['scripts/chatgpt-voice-content.js'],
+          });
+        } catch (_) {
+          // Déjà injecté, on ignore
+        }
+
+        let response = await chrome.tabs.sendMessage(tab.id, { action });
+
+        if (
+          msg.type === 'start_recording' &&
+          response?.type === 'status' &&
+          response.state === 'recording' &&
+          voiceGatewayCancelRequested
+        ) {
+          response = await chrome.tabs.sendMessage(tab.id, {
+            action: 'voiceGateway_cancelRecording'
+          });
+        }
+
+        if (response) {
+          sendToGateway(response);
+
+          // Notifier l'UI
+          if (response.type === 'status') {
+            if (response.state === 'recording') {
+              voiceGatewayCancelRequested = false;
+            }
+            voiceGatewayState = response.state;
+            notifyUI('voiceGateway_ui_status', { state: response.state });
+          } else if (response.type === 'cancelled') {
+            voiceGatewayCancelRequested = false;
+            voiceGatewayState = 'idle';
+            notifyUI('voiceGateway_ui_status', { state: 'idle' });
+          } else if (response.type === 'transcription') {
+            voiceGatewayCancelRequested = false;
+            notifyUI('voiceGateway_ui_transcription', { text: response.text });
+            notifyUI('voiceGateway_ui_status', { state: 'idle' });
+            voiceGatewayState = 'idle';
+          } else if (response.type === 'error') {
+            notifyUI('voiceGateway_ui_error', { message: response.message });
+            voiceGatewayState = 'error';
+          }
+        }
+      } catch (e) {
+        console.error('[VoiceGateway] Content script error:', e);
+        const errorMsg = e.message || 'Content script unreachable';
+        sendToGateway({
+          type: 'error',
+          code: 'CONTENT_SCRIPT_ERROR',
+          message: errorMsg
+        });
+        notifyUI('voiceGateway_ui_error', { message: errorMsg });
+        voiceGatewayState = 'error';
+      }
+      break;
+    }
+    case 'ping':
+      sendToGateway({ type: 'pong' });
+      break;
+    default:
+      console.log('[VoiceGateway] Unknown native message type:', msg.type);
+  }
+}
+
+// Notifier l'interface Voice Gateway (si ouverte)
+function notifyUI(action, data = {}) {
+  chrome.runtime.sendMessage({ action, ...data }).catch(() => {
+    // L'UI n'est pas ouverte, on ignore
+  });
+}
+
+// État courant pour que l'UI puisse le demander
+let voiceGatewayState = 'disconnected';
+
+// Connecter au native host au démarrage du service worker
+installGatewayAlarm();
+connectToGateway();
+
+chrome.runtime.onStartup.addListener(() => {
+  installGatewayAlarm();
+  ensureGatewayConnection();
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+  installGatewayAlarm();
+  ensureGatewayConnection();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === VOICE_GATEWAY_ALARM) {
+    ensureGatewayConnection();
+  }
+});
+
 // Listen for messages from the content script
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action?.startsWith('voiceGateway_')) {
+    ensureGatewayConnection();
+  }
+
   switch (message.action) {
     case "disableConsoleClear":
       console.log("console.clear has been disabled.");
@@ -153,6 +406,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         width: 350,
         height: 400
       });
+      return false;
+    case "voiceGateway_transcription":
+      console.log('[VoiceGateway] Transcription received:', message.text);
+      sendToGateway({
+        type: 'transcription',
+        text: message.text
+      });
+      notifyUI('voiceGateway_ui_transcription', { text: message.text });
+      notifyUI('voiceGateway_ui_status', { state: 'idle' });
+      voiceGatewayState = 'idle';
+      return false;
+    case "voiceGateway_error":
+      console.log('[VoiceGateway] Error from content script:', message);
+      sendToGateway({
+        type: 'error',
+        code: message.code || 'CONTENT_SCRIPT_ERROR',
+        message: message.message || 'Unknown error'
+      });
+      notifyUI('voiceGateway_ui_error', { message: message.message });
+      voiceGatewayState = 'error';
+      return false;
+    case "voiceGateway_getStatus":
+      ensureGatewayConnection();
+      sendResponse({ state: voiceGatewayState });
       return false;
     case "openAnimeManager":
       const searchTerm = message.searchTerm || '';

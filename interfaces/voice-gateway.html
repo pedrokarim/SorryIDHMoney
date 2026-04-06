@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voice Gateway</title>
+  <link rel="stylesheet" href="../styles/voice-gateway.css">
+</head>
+<body>
+  <div class="manager">
+    <div class="manager-header">
+      <a href="popup.html" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </a>
+      <h1>Voice Gateway</h1>
+    </div>
+
+    <!-- Status -->
+    <div class="status-card">
+      <div class="status-row">
+        <div class="status-indicator" id="status-indicator"></div>
+        <div>
+          <div class="status-text" id="status-text">Connexion...</div>
+          <div class="status-detail" id="status-detail"></div>
+        </div>
+        <span class="shortcut-badge">Ctrl+Alt+V</span>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-value" id="stat-total">0</div>
+        <div class="stat-label">Transcriptions</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-words">0</div>
+        <div class="stat-label">Mots</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="stat-today">0</div>
+        <div class="stat-label">Aujourd'hui</div>
+      </div>
+    </div>
+
+    <!-- Historique -->
+    <div class="section-header">
+      <h2>Historique</h2>
+      <button class="clear-btn" id="clear-history">Effacer</button>
+    </div>
+
+    <div class="history-list" id="history-list">
+      <div class="empty-state" id="empty-state">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        <p>Aucune transcription pour le moment</p>
+        <p>Appuyez sur Ctrl+Alt+V pour commencer</p>
+      </div>
+    </div>
+
+    <!-- Installation -->
+    <div class="install-section">
+      <div class="section-header">
+        <h2>Installation</h2>
+      </div>
+      <div class="install-card">
+        <div class="install-row">
+          <span class="install-label">Extension ID</span>
+          <code class="extension-id" id="extension-id"></code>
+          <button class="history-copy-btn" id="copy-id-btn">Copier</button>
+        </div>
+        <p class="install-hint">
+          Installation rapide (wildcard) :<br>
+          <code>voice-gateway.exe --install</code>
+        </p>
+        <p class="install-hint">
+          Installation avec ID spécifique :<br>
+          <code>voice-gateway.exe --install --extension-id <span id="install-id-placeholder"></span></code>
+        </p>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="log-section">
+      <button class="log-toggle" id="log-toggle">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        Logs
+      </button>
+      <div class="log-container" id="log-container"></div>
+    </div>
+  </div>
+
+  <script src="voice-gateway.js"></script>
+</body>
+</html>

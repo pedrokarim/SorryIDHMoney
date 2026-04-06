@@ -1,0 +1,357 @@
+@import 'base.css';
+
+body {
+  width: 500px;
+  min-width: 500px;
+  max-width: 500px;
+  background: #f8f9fa;
+}
+
+.manager {
+  padding: 12px;
+}
+
+/* Header */
+.manager-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  color: var(--gray-dark);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.back-btn:hover {
+  background: #eee;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.manager-header h1 {
+  font-size: 15px;
+  margin: 0;
+  color: var(--dark);
+  flex: 1;
+}
+
+/* Status card */
+.status-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-round);
+  flex-shrink: 0;
+  transition: background-color var(--transition-fast);
+}
+
+.status-indicator.idle { background-color: var(--gray-light); }
+.status-indicator.connected { background-color: var(--success); }
+.status-indicator.recording { background-color: var(--danger); animation: pulse 1s infinite; }
+.status-indicator.processing { background-color: var(--warning); animation: pulse 1.5s infinite; }
+.status-indicator.error { background-color: var(--danger); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.status-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--dark);
+}
+
+.status-detail {
+  font-size: 11px;
+  color: var(--gray);
+  margin-top: 4px;
+}
+
+.shortcut-badge {
+  font-size: 11px;
+  background: var(--light-gray);
+  color: var(--gray-dark);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-weight: 600;
+}
+
+/* Stats summary */
+.stats-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stat-box {
+  flex: 1;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: var(--gray);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.section-header h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dark);
+  margin: 0;
+}
+
+.clear-btn {
+  font-size: 11px;
+  color: var(--gray);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.clear-btn:hover {
+  color: var(--danger);
+  background: rgba(244, 67, 54, 0.08);
+}
+
+/* History list */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.history-item {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  transition: all var(--transition-fast);
+}
+
+.history-item:hover {
+  border-color: var(--primary-light);
+}
+
+.history-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.history-time {
+  font-size: 10px;
+  color: var(--gray);
+}
+
+.history-copy-btn {
+  font-size: 10px;
+  color: var(--gray);
+  background: none;
+  border: 1px solid #eee;
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.history-copy-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary-light);
+}
+
+.history-copy-btn.copied {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.history-text {
+  font-size: 12px;
+  color: var(--dark);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--gray);
+}
+
+.empty-state svg {
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
+
+.empty-state p {
+  font-size: 12px;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Install section */
+.install-section {
+  margin-top: 12px;
+}
+
+.install-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: var(--radius-sm);
+  padding: 10px;
+}
+
+.install-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.install-label {
+  font-size: 11px;
+  color: var(--gray);
+  flex-shrink: 0;
+}
+
+.extension-id {
+  font-size: 11px;
+  background: var(--light-gray);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', monospace;
+  color: var(--dark);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-hint {
+  font-size: 10px;
+  color: var(--gray);
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+.install-hint code {
+  font-size: 10px;
+  background: var(--light-gray);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: 'Consolas', monospace;
+  color: var(--dark);
+}
+
+/* Log section */
+.log-section {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+.log-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--gray);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  width: 100%;
+  transition: color var(--transition-fast);
+}
+
+.log-toggle:hover {
+  color: var(--gray-dark);
+}
+
+.log-toggle svg {
+  transition: transform var(--transition-fast);
+}
+
+.log-toggle.open svg {
+  transform: rotate(90deg);
+}
+
+.log-container {
+  display: none;
+  margin-top: 6px;
+  background: #1e1e1e;
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  max-height: 160px;
+  overflow-y: auto;
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.log-container.visible {
+  display: block;
+}
+
+.log-entry {
+  color: #ccc;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-entry.error { color: #ff6b6b; }
+.log-entry.success { color: #69db7c; }
+.log-entry.info { color: #74c0fc; }
+.log-entry.warn { color: #ffd43b; }

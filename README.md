@@ -72,6 +72,16 @@ Options disponibles :
 - `Ctrl + L` : Retour à la liste des épisodes
 - `Ctrl + ← / →` : Navigation entre épisodes
 
+## 🎙️ Voice Gateway
+
+Le projet contient aussi `voice-gateway`, un petit widget Windows de dictée locale relié à ChatGPT.
+
+### Prompt visuel suggéré
+
+```text
+Create a polished product illustration for "Voice Gateway", a compact Windows voice dictation widget. Show a floating frameless dark panel with rounded corners, a luminous central microphone button, subtle orbit and waveform motion cues, two smaller side buttons for history and settings, and a refined tray-icon ecosystem in the Windows taskbar. The visual style should feel premium, technical, calm, and intentional: deep midnight blue background, graphite surfaces, cyan, mint, amber, and coral accents, soft volumetric glows, elegant reflections, no purple dominance, no generic neon cyberpunk. Emphasize clarity, responsiveness, and voice workflow. Include a second expanded panel variant for history/settings with clean cards, readable transcription snippets, and tactile controls. High-detail UI mockup, modern desktop product shot, crisp lighting, realistic glass and matte materials, no phone, no browser chrome, 16:9 composition.
+```
+
 ## 📊 Statistiques Twitch
 
 Visualisez vos statistiques de collecte :
