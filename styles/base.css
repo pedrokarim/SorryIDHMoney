@@ -79,12 +79,9 @@
   --transition-slow: 0.5s;
   
   /* Dimensions d'interface */
-  --popup-width: 400px;        /* Taille unique pour toutes les interfaces */
+  --popup-width: 340px;        /* Largeur du popup principal */
+  --page-width: 500px;         /* Largeur des pages internes (options, stats, about, anime-manager) */
   --sidebar-width: 250px;
-  --options-width: 400px;      /* Même taille que popup-width */
-  
-  /* Dimensions d'interface unifiées */
-  --interface-width: 350px;    /* Largeur unique pour toutes les interfaces */
 
   /* Couleurs Twitch */
   --twitch-purple: #9147ff;
@@ -110,9 +107,9 @@ body {
   line-height: var(--line-height-tight);
   color: var(--dark);
   background-color: var(--white);
-  width: var(--interface-width);  /* Largeur fixe pour TOUTES les interfaces */
-  min-width: var(--interface-width);
-  max-width: var(--interface-width);
+  width: var(--popup-width);
+  min-width: var(--popup-width);
+  max-width: var(--popup-width);
   margin: 0 auto;
   padding: 0;
   box-sizing: border-box;

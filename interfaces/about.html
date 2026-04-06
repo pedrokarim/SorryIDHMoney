@@ -7,104 +7,129 @@
   <link rel="stylesheet" href="../styles/about.css">
 </head>
 <body>
-  <a href="popup.html" class="back-link">Retour</a>
-  
-  <div class="container">
-    <div class="logo-container">
-      <img src="../icons/icon128.png" alt="Logo de l'extension" class="logo">
+  <div class="manager">
+    <div class="manager-header">
+      <a href="popup.html" class="back-btn" title="Retour">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </a>
+      <h1>À propos</h1>
     </div>
-    
-    <h1 id="extension-name">Anime Companion</h1>
-    <div class="version">Version <span id="extension-version">1.0.0</span></div>
-    <p id="extension-description" class="description"></p>
-    
+  </div>
+
+  <div class="about-content">
+    <!-- Hero -->
+    <div class="hero">
+      <img src="../icons/icon128.png" alt="Logo" class="hero-logo">
+      <div class="hero-title" id="extension-name">SorryIDHMoney</div>
+      <div class="hero-version">v<span id="extension-version">1.0.0</span></div>
+      <p class="hero-desc" id="extension-description"></p>
+    </div>
+
     <div class="alert error" id="manifest-error" style="display: none;">
       Impossible de charger les informations de l'extension.
     </div>
-    
-    <div class="card">
-      <h2>Créateur</h2>
-      <div class="creator">
-        <img src="https://github.com/AliasPedroKarim.png" alt="Avatar du créateur" class="avatar" id="github-avatar">
+
+    <!-- Créateur -->
+    <div class="section">
+      <div class="creator-row">
+        <img src="https://github.com/AliasPedroKarim.png" alt="Avatar" class="creator-avatar" id="github-avatar">
         <div class="creator-info">
           <div class="creator-name" id="extension-author">@AliasPedroKarim</div>
-          <div class="creator-links">
-            <a href="https://github.com/AliasPedroKarim" target="_blank" class="social-link github">
-              <span class="icon icon-github"></span>GitHub
-            </a>
-          </div>
+          <a href="https://github.com/AliasPedroKarim" target="_blank" class="creator-github">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+          </a>
         </div>
       </div>
     </div>
-    
-    <div class="card">
-      <h2>Informations</h2>
-      <div class="info-grid">
-        <div class="info-item">
-          <div class="info-label">Installée le</div>
-          <div class="info-value" id="install-date">-</div>
+
+    <!-- Stats -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        Statistiques
+      </div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-num" id="total-animes">-</div>
+          <div class="stat-lbl">Animes en cache</div>
         </div>
-        <div class="info-item">
-          <div class="info-label">Mise à jour le</div>
-          <div class="info-value" id="update-date">-</div>
+        <div class="stat-card accent">
+          <div class="stat-num" id="twitch-points">-</div>
+          <div class="stat-lbl">Points Twitch</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" id="twitch-clicks">-</div>
+          <div class="stat-lbl">Rewards</div>
         </div>
       </div>
     </div>
-    
-    <div class="card">
-      <h2>Permissions</h2>
-      <ul class="permissions-list" id="permissions-list">
-        <!-- Liste des permissions sera générée par JS -->
-      </ul>
+
+    <!-- Top chaînes -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        Top chaînes Twitch
+      </div>
+      <div class="list" id="top-channels"></div>
     </div>
-    
-    <div class="card">
-      <h2>Statistiques</h2>
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-value" id="total-animes">-</div>
-          <div class="stat-label">Animes en cache</div>
+
+    <!-- Derniers animes -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Derniers animes recherchés
+      </div>
+      <div class="list" id="top-animes"></div>
+    </div>
+
+    <!-- Infos -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        Informations
+      </div>
+      <div class="info-row">
+        <div class="info-cell">
+          <div class="info-lbl">Installée le</div>
+          <div class="info-val" id="install-date">-</div>
         </div>
-        <div class="stat-item">
-          <div class="stat-value" id="twitch-points">-</div>
-          <div class="stat-label">Points Twitch</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-value" id="twitch-clicks">-</div>
-          <div class="stat-label">Rewards récupérées</div>
+        <div class="info-cell">
+          <div class="info-lbl">Mise à jour le</div>
+          <div class="info-val" id="update-date">-</div>
         </div>
       </div>
     </div>
-    
-    <div class="card">
-      <h2>Top chaînes Twitch</h2>
-      <div class="top-list" id="top-channels">
-        <!-- Les chaînes Twitch les plus visitées seront injectées ici -->
+
+    <!-- Permissions -->
+    <div class="section">
+      <div class="section-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Permissions
       </div>
+      <div class="perm-list" id="permissions-list"></div>
     </div>
-    
-    <div class="card">
-      <h2>Derniers animes recherchés</h2>
-      <div class="top-list" id="top-animes">
-        <!-- Les derniers animes recherchés seront injectés ici -->
+
+    <!-- Danger zone -->
+    <div class="section danger-zone">
+      <div class="section-title danger">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Zone dangereuse
       </div>
+      <p class="danger-text">Cette action effacera toutes vos données et préférences.</p>
+      <button id="reset-all-data" class="reset-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        Réinitialiser toutes les données
+      </button>
     </div>
-    
-    <div class="card danger">
-      <h2>Réinitialisation</h2>
-      <p class="warning-text">Attention, cette action effacera toutes vos données et préférences.</p>
-      <button id="reset-all-data" class="btn btn-danger">Réinitialiser toutes les données</button>
-    </div>
-    
-    <div class="disclaimer">
-      Cette extension est un projet personnel et n'est pas affiliée à MyAnimeList, AniList ou Twitch.
-    </div>
-    
-    <div class="copyright">
-      © <span id="current-year">2023</span> <span id="extension-author-copyright">@AliasPedroKarim</span>. Tous droits réservés.
+
+    <!-- Footer -->
+    <div class="footer">
+      <div>Projet personnel, non affilié à MAL, AniList ou Twitch.</div>
+      <div>&copy; <span id="current-year">2024</span> <span id="extension-author-copyright">@AliasPedroKarim</span></div>
     </div>
   </div>
-  
+
   <script src="about.js"></script>
 </body>
-</html> 
+</html>

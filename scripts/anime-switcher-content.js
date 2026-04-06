@@ -178,7 +178,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 
         if (enableAnilist) {
           chrome.runtime.sendMessage(
-            { action: "getAnilistMedia", search: mediaInfo.title, typePreference: mediaInfo.type.toUpperCase() },
+            { action: "getAnilistMedia", search: mediaInfo.title },
             function (response) {
               if (!response) return;
 

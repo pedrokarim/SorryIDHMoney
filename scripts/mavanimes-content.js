@@ -4,11 +4,8 @@
 // case-insensitive substring in a string.
 
 const srcUtils = chrome.runtime.getURL("scripts/utils.js");
-const toastScript = chrome.runtime.getURL("libs/toast-manager.js");
 const animeCacheScript = chrome.runtime.getURL("scripts/anime-cache-manager.js");
 
-// Fonction pour afficher un toast
-let showToast;
 let animeCache;
 
 function findCaseInsensitiveSubstring(sourceString, searchString) {
@@ -21,7 +18,7 @@ function findCaseInsensitiveSubstring(sourceString, searchString) {
 function extractEpisodeTitle(inputString) {
   // Utilisez une expression régulière pour extraire le texte avant "Episode" ou "Film"
   const match = inputString.match(/^(.*?)(Episode|Film)/);
-  
+
   let result = "";
 
   if (match && match[1]) {
@@ -61,7 +58,7 @@ function extractLinkList(inputString) {
   if (isGekijouban) {
     result = result.replace("gekijouban-", "").trim();
   }
-  
+
   // add /anime/ to the result in url
   const url = new URL(result);
   url.pathname = `/anime${url.pathname}`;
@@ -154,15 +151,13 @@ if ([
 
 (async () => {
   // Charger les modules de manière asynchrone
-  const [toastModule, cacheModule] = await Promise.all([
-    import(toastScript),
+  const [cacheModule] = await Promise.all([
     import(animeCacheScript)
   ]);
-  
-  showToast = toastModule.showToast;
+
   animeCache = cacheModule.animeCache;
 
-  const { addCustomButton, animationCSS, injectCSSAnimation } = await import(
+  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, animationCSS, injectCSSAnimation } = await import(
     srcUtils
   );
   injectCSSAnimation(animationCSS());
@@ -170,13 +165,20 @@ if ([
   // replace de href par "/" du premier élément (#menu-items li a) sur toute les pages
   document?.querySelectorAll("#menu-items li a")[0]?.setAttribute("href", "/");
 
+  // Callback quand un anime est sélectionné via la popup de recherche
+  // On sauvegarde dans le cache, on reste en mode édition
+  // Le bouton X (quitter) rechargera la page et les vrais boutons apparaîtront
+  async function onAnimeSelected(selection) {
+    await animeCache.setCustomUrl(selection.animeName, selection.anilistUrl);
+  }
+
   function addButtons(data) {
     if (data?.siteMalUrl || data?.malUrl) {
       addCustomButton("myanimelist", data.siteMalUrl || data.malUrl, { openInNewTab: true });
     }
 
     if (data?.siteUrl || data?.anilistUrl) {
-      addCustomButton("anilist", data.siteUrl, {
+      addCustomButton("anilist", data.siteUrl || data.anilistUrl, {
         styles: {
           left: `${20 * 2 + 50}px`,
         },
@@ -204,6 +206,13 @@ if ([
       addBackToListButton();
     }
 
+    // Écouter le message de mode édition depuis la popup
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.action === "toggleEditMode" && message.enabled) {
+        enableEditModeOnButtons(episodeTitleRaw, onAnimeSelected);
+      }
+    });
+
     try {
       // Vérifier si l'anime est dans le cache avant de faire la recherche
       const cachedResult = await animeCache.isInCache(episodeTitle);
@@ -217,44 +226,18 @@ if ([
           malUrl: cachedResult.malUrl || null,
           siteMalUrl: null
         });
+        return;
       }
     } catch (error) {
       console.error('Erreur lors de la vérification du cache:', error);
-      // Continuer avec la recherche normale en cas d'erreur
     }
 
     chrome.runtime.sendMessage(
-      { action: "getAnilistMedia", search: episodeTitle, typePreference: "ANIME" },
+      { action: "getAnilistMedia", search: episodeTitle },
       function (response) {
         if (!response) {
-          // Ajouter l'anime au cache (avec autoIgnore=true)
-          animeCache.addNotFoundAnime(episodeTitle, window.location.href, episodeTitleRaw, true);
-          
-          // Afficher un toast d'erreur avec des boutons
-          if (showToast) {
-            showToast(`Anime non trouvé : ${episodeTitleRaw}`, {
-              type: 'warning',
-              duration: 8000,
-              position: 'bottom-left',
-              buttons: [
-                {
-                  text: 'Ignorer',
-                  onClick: () => animeCache.ignoreAnime(episodeTitle),
-                  type: 'danger'
-                },
-                {
-                  text: 'Gérer URL',
-                  onClick: () => {
-                    chrome.runtime.sendMessage({
-                      action: 'openAnimeManager',
-                      searchTerm: episodeTitle
-                    });
-                  },
-                  type: 'primary'
-                }
-              ]
-            });
-          }
+          // Anime non trouvé : afficher les boutons en mode édition
+          addEditButtons(episodeTitleRaw, onAnimeSelected);
           return;
         }
 
@@ -330,7 +313,7 @@ if ([
 function extractEpisodeNumber(url) {
   const matchEpisode = url.match(/episode-(\d+)/i);
   const matchFilm = url.match(/film-(\d+)/i);
-  
+
   if (matchEpisode && matchEpisode[1]) {
     return parseInt(matchEpisode[1]);
   } else if (matchFilm && matchFilm[1]) {
@@ -356,36 +339,6 @@ async function checkPageExists(url) {
     return false;
   }
 }
-
-/* // Fonction pour créer un bouton et appliquer le style en JavaScript
-function createButton(icon, position) {
-  const button = document.createElement('a');
-  button.innerHTML = `<span></span>`;
-  document.body.appendChild(button);
-
-  // Appliquer le style directement
-  button.style.position = 'fixed';
-  button.style.top = '50%';
-  button.style.transform = 'translateY(-50%)';
-  button.style.width = '50px';
-  button.style.height = '50px';
-  button.style.backgroundColor = '#6b46c1';
-  button.style.borderRadius = '8px';
-  button.style.textAlign = 'center';
-  button.style.lineHeight = '50px';
-  button.style.fontSize = '24px';
-  button.style.cursor = 'pointer';
-  button.style[`${position === 'left' ? 'left' : 'right'}`] = '20px'; // Utilisation de [ ] pour utiliser une variable comme nom de propriété
-
-  // Création de l'icône
-  const span = document.createElement('span');
-  span.innerHTML = icon === 'prev-icon' ? '◄' : '►';
-  span.style.display = 'inline-block';
-  span.style.fontFamily = 'Arial';
-  button.appendChild(span);
-
-  return button;
-} */
 
 function createGenericButton(iconHTML, styles) {
   const button = document.createElement('a');
@@ -508,12 +461,12 @@ function addBackToListButton() {
     backgroundColor: '#805ad5',
     color: '#fff',
   });
-  
+
   // Ajout du tooltip pour le raccourci
   button.addEventListener('mouseenter', () => {
     button.setAttribute('title', 'Raccourci: Ctrl + L');
   });
-  
+
   button.href = extractLinkList(window.location.href);
 
   // Ajout du raccourci clavier Ctrl + L pour la liste des épisodes
@@ -524,97 +477,3 @@ function addBackToListButton() {
     }
   });
 }
-
-let activeVideo = null; // Variable pour stocker la vidéo actuellement en cours de lecture
-
-// Fonction pour avancer la vidéo active de X secondes
-// async function setupButtonAdvanceVideo() {
-
-//   // Fonction pour avancer la vidéo active de X secondes
-//   function advanceActiveVideo(seconds) {
-//     if (activeVideo) {
-//       activeVideo.currentTime += seconds; // Avance de X secondes
-//       console.log(`Vidéo avancée de ${seconds} secondes`);
-//     } else {
-//       console.log("Aucune vidéo active trouvée.");
-//     }
-//   }
-  
-//   // Fonction pour attacher les événements 'playing' et 'pause' à une vidéo
-//   function attachVideoEvents(video) {
-//     video.addEventListener('playing', function () {
-//       activeVideo = video;
-//       console.log("Vidéo active détectée.");
-//     });
-  
-//     video.addEventListener('pause', function () {
-//       if (activeVideo === video) {
-//         activeVideo = null;
-//         console.log("Vidéo mise en pause, plus de vidéo active.");
-//       }
-//     });
-//   }
-  
-//   // Fonction pour détecter les vidéos présentes et leur attacher des événements
-//   function detectActiveVideo() {
-//     const videos = document.querySelectorAll('video');
-//     console.log(`Détecté ${videos.length} vidéo(s) sur la page.`, videos);
-  
-//     for (let video of videos) {
-//       if (!video.dataset.eventsAttached) { // Vérifie si les événements sont déjà attachés
-//         attachVideoEvents(video);
-//         video.dataset.eventsAttached = true; // Marque la vidéo comme ayant les événements attachés
-//       }
-//     }
-//   }
-  
-//   // Observer les modifications dans le DOM pour détecter de nouvelles vidéos
-//   const observer = new MutationObserver((mutations) => {
-//     mutations.forEach((mutation) => {
-//       console.log(
-//         `Mutation de type '${mutation.type}' détectée, ${mutation.addedNodes.length} nœud(s) ajouté(s).`
-//       );
-      
-//       if (mutation.addedNodes.length > 0) {
-//         for (let node of mutation.addedNodes) {
-//           if (node.tagName === 'VIDEO') {
-//             console.log('Nouvelle vidéo détectée, événements attachés.');
-//             attachVideoEvents(node); // Attache les événements à la nouvelle vidéo
-//           }
-//         }
-//       }
-//     });
-//   });
-  
-//   // Options de l'observateur : observe les enfants et les sous-arbres pour les ajouts de nœuds
-//   observer.observe(document.body, { childList: true, subtree: true });
-  
-//   // Initialiser la détection des vidéos existantes sur la page
-//   detectActiveVideo();
-
-
-
-
-
-
-//   const advanceButton = createGenericButton('<span>⏩</span>', {
-//     position: 'fixed',
-//     bottom: '20px',
-//     right: '20px',
-//     backgroundColor: '#805ad5',
-//     color: '#fff',
-//   });
-
-//   advanceButton.addEventListener('click', () => {
-//     /* chrome.runtime.sendMessage({ action: "advanceActiveVideo", time: 80 }, function(response) {
-//       if (response.status === 'success') {
-//         console.log(response.message);
-//       } else {
-//         console.log('Erreur lors de l\'avancement de la vidéo.');
-//       }
-//     }); */
-    
-//     advanceActiveVideo(80);
-//   });
-// }
-

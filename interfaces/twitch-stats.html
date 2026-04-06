@@ -7,29 +7,48 @@
     <link rel="stylesheet" href="../styles/twitch-stats.css">
 </head>
 <body>
-    <a href="popup.html" class="back-link">Retour</a>
-    <div class="stats-container">
-        <div class="stat-item">
-            <span class="stat-label">Total clics :</span>
-            <span class="stat-value" id="click-count">0</span>
+    <div class="manager">
+        <div class="manager-header">
+            <a href="popup.html" class="back-btn" title="Retour">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </a>
+            <h1>Statistiques Twitch</h1>
         </div>
-        <div class="stat-item">
-            <span class="stat-label">Total points :</span>
-            <span class="stat-value" id="points-collected">0</span>
+
+        <div class="stats-summary">
+            <div class="stat-box">
+                <div class="stat-box-value" id="click-count">0</div>
+                <div class="stat-box-label">Clics</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-value" id="points-collected">0</div>
+                <div class="stat-box-label">Points</div>
+            </div>
         </div>
-        
-        <h3 class="stats-header">Détails par chaîne</h3>
-        <div class="channel-stats" id="channel-stats">
-            <!-- Les stats par chaîne seront injectées ici -->
+
+        <div class="section-header">
+            <span>Détails par chaîne</span>
+            <span class="channel-count" id="channel-count"></span>
         </div>
+
+        <div class="search-bar">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="search-input" placeholder="Rechercher une chaîne...">
+        </div>
+
+        <div class="list-container" id="channel-stats"></div>
+        <div class="empty-message" id="empty-message" style="display: none;">Aucune chaîne visitée.</div>
+        <div class="pagination" id="pagination"></div>
 
         <div class="last-update" id="last-update">
             Dernière mise à jour : Jamais
         </div>
-        <button class="reset-button" id="reset-stats">
-            Réinitialiser les statistiques
+
+        <button class="reset-btn" id="reset-stats">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Réinitialiser
         </button>
     </div>
     <script src="twitch-stats.js"></script>
 </body>
-</html> 
+</html>

@@ -1,9 +1,15 @@
 /**
- * Gestion du cache des animes non trouvés
+ * Gestion du cache des animes
+ * Structure optimisée avec TTL, lazy-write et batch save
  */
+
+const CACHE_KEY = 'animeCache_v2';
+const SAVE_DEBOUNCE_MS = 500;
+
 class AnimeCacheManager {
     constructor() {
         this.cache = null;
+        this._saveTimer = null;
         this.ready = this.initCache();
     }
 
@@ -12,15 +18,59 @@ class AnimeCacheManager {
      */
     async initCache() {
         return new Promise(resolve => {
-            chrome.storage.local.get(['animeNotFoundCache'], result => {
-                this.cache = result.animeNotFoundCache || {
-                    items: {},
-                    customUrls: {},
-                    ignoredItems: []
-                };
+            chrome.storage.local.get([CACHE_KEY, 'animeNotFoundCache'], result => {
+                if (result[CACHE_KEY]) {
+                    this.cache = result[CACHE_KEY];
+                } else if (result.animeNotFoundCache) {
+                    // Migration depuis l'ancien format
+                    this.cache = this._migrateFromV1(result.animeNotFoundCache);
+                    this._saveImmediate();
+                    // Nettoyer l'ancien cache
+                    chrome.storage.local.remove('animeNotFoundCache');
+                } else {
+                    this.cache = {
+                        customUrls: {},
+                        ignoredItems: [],
+                        version: 2
+                    };
+                }
+
+                // Nettoyage des entrées expirées au chargement
+                this._cleanup();
                 resolve();
             });
         });
+    }
+
+    /**
+     * Migration depuis le format v1
+     */
+    _migrateFromV1(oldCache) {
+        const newCache = {
+            customUrls: {},
+            ignoredItems: oldCache.ignoredItems || [],
+            version: 2
+        };
+
+        // Migrer les customUrls avec timestamp
+        if (oldCache.customUrls) {
+            for (const [key, value] of Object.entries(oldCache.customUrls)) {
+                newCache.customUrls[key] = {
+                    ...value,
+                    timestamp: Date.now()
+                };
+            }
+        }
+
+        return newCache;
+    }
+
+    /**
+     * Nettoyage (placeholder pour d'éventuelles futures règles)
+     * Les customUrls n'expirent jamais - seul l'utilisateur peut les supprimer
+     */
+    _cleanup() {
+        // Les customUrls sont permanentes, pas de nettoyage automatique
     }
 
     /**
@@ -33,78 +83,52 @@ class AnimeCacheManager {
     }
 
     /**
-     * Sauvegarde le cache dans le stockage local
+     * Sauvegarde le cache avec debounce pour éviter les écritures trop fréquentes
      */
-    async saveCache() {
+    _scheduleSave() {
+        if (this._saveTimer) {
+            clearTimeout(this._saveTimer);
+        }
+        this._saveTimer = setTimeout(() => {
+            this._saveImmediate();
+        }, SAVE_DEBOUNCE_MS);
+    }
+
+    /**
+     * Sauvegarde immédiate
+     */
+    _saveImmediate() {
         return new Promise(resolve => {
-            chrome.storage.local.set({ animeNotFoundCache: this.cache }, resolve);
+            chrome.storage.local.set({ [CACHE_KEY]: this.cache }, resolve);
         });
     }
 
     /**
-     * Ajoute un anime non trouvé au cache
-     * @param {string} searchTerm - Terme de recherche utilisé
-     * @param {string} sourceUrl - URL de la page source
-     * @param {string} title - Titre complet de l'anime
-     * @param {boolean} autoIgnore - Si true, l'anime sera automatiquement ignoré après un certain nombre de tentatives
+     * Normalise une clé de cache (lowercase + trim)
      */
-    async addNotFoundAnime(searchTerm, sourceUrl, title, autoIgnore = true) {
-        await this.ensureCacheReady();
-
-        // Vérifier si l'anime est déjà dans la liste des ignorés
-        if (this.cache.ignoredItems.includes(searchTerm)) {
-            return true; // Retourner true pour indiquer que c'est ignoré
-        }
-
-        // Vérifier si un URL personnalisé existe
-        if (this.cache.customUrls[searchTerm]) {
-            return this.cache.customUrls[searchTerm];
-        }
-
-        // Ajouter l'anime au cache s'il n'existe pas encore
-        if (!this.cache.items[searchTerm]) {
-            this.cache.items[searchTerm] = {
-                searchTerm,
-                title,
-                sourceUrl,
-                timestamp: Date.now(),
-                attempts: 1
-            };
-        } else {
-            // Incrémenter le nombre de tentatives
-            this.cache.items[searchTerm].attempts++;
-            this.cache.items[searchTerm].timestamp = Date.now();
-
-            // Ignorer automatiquement après 3 tentatives si autoIgnore est activé
-            if (autoIgnore && this.cache.items[searchTerm].attempts >= 3) {
-                await this.ignoreAnime(searchTerm);
-                return true; // L'anime est maintenant ignoré
-            }
-        }
-
-        await this.saveCache();
-        return false;
+    _normalize(key) {
+        return key?.toLowerCase().trim() || '';
     }
 
     /**
-     * Vérifie si un terme de recherche est dans le cache
+     * Vérifie si un terme de recherche a une correspondance dans le cache
      * @param {string} searchTerm - Terme de recherche à vérifier
+     * @returns {true|object|null} true si ignoré, object si customUrl, null sinon
      */
     async isInCache(searchTerm) {
         await this.ensureCacheReady();
+        const key = this._normalize(searchTerm);
 
-        // Vérifier si l'anime est dans la liste des ignorés
-        if (this.cache.ignoredItems.includes(searchTerm)) {
-            return true; // Ignoré
+        if (this.cache.ignoredItems.includes(key)) {
+            return true;
         }
 
-        // Vérifier si un URL personnalisé existe
-        if (this.cache.customUrls[searchTerm]) {
-            return this.cache.customUrls[searchTerm]; // URL personnalisée
+        const customUrl = this.cache.customUrls[key];
+        if (customUrl) {
+            return customUrl;
         }
 
-        // Vérifier si l'anime est dans le cache
-        return !!this.cache.items[searchTerm] ? false : null;
+        return null;
     }
 
     /**
@@ -113,19 +137,12 @@ class AnimeCacheManager {
      */
     async ignoreAnime(searchTerm) {
         await this.ensureCacheReady();
+        const key = this._normalize(searchTerm);
 
-        if (!this.cache.ignoredItems.includes(searchTerm)) {
-            this.cache.ignoredItems.push(searchTerm);
-
-            // Nettoyer les autres entrées si nécessaire
-            if (this.cache.items[searchTerm]) {
-                delete this.cache.items[searchTerm];
-            }
-            if (this.cache.customUrls[searchTerm]) {
-                delete this.cache.customUrls[searchTerm];
-            }
-
-            await this.saveCache();
+        if (!this.cache.ignoredItems.includes(key)) {
+            this.cache.ignoredItems.push(key);
+            delete this.cache.customUrls[key];
+            this._scheduleSave();
             return true;
         }
         return false;
@@ -138,75 +155,49 @@ class AnimeCacheManager {
      */
     async setCustomUrl(searchTerm, customUrl) {
         await this.ensureCacheReady();
+        const key = this._normalize(searchTerm);
 
-        // Extraire l'ID AniList de l'URL
-        const anilistId = this.extractAnilistId(customUrl);
+        const anilistId = this._extractAnilistId(customUrl);
+        let entry = {
+            anilistUrl: customUrl,
+            malUrl: null,
+            title: searchTerm,
+            timestamp: Date.now()
+        };
 
         if (anilistId) {
             try {
-                // Tenter de récupérer les données complètes via l'API AniList
-                const mediaData = await this.fetchAnilistMediaData(anilistId);
-
+                const mediaData = await this._fetchAnilistMediaData(anilistId);
                 if (mediaData) {
-                    // Stocker l'URL AniList et MAL si disponible
-                    this.cache.customUrls[searchTerm] = {
-                        anilistUrl: customUrl,
-                        malUrl: mediaData.siteUrl ? mediaData.malUrl : null,
-                        title: mediaData.title ? mediaData.title.romaji : searchTerm
-                    };
-                } else {
-                    // Si on ne peut pas récupérer les données, stocker juste l'URL AniList
-                    this.cache.customUrls[searchTerm] = {
-                        anilistUrl: customUrl,
-                        malUrl: null
-                    };
+                    entry.malUrl = mediaData.malUrl;
+                    entry.title = mediaData.title?.romaji || searchTerm;
                 }
             } catch (error) {
                 console.error("Erreur lors de la récupération des données AniList:", error);
-                // En cas d'erreur, stocker juste l'URL AniList
-                this.cache.customUrls[searchTerm] = {
-                    anilistUrl: customUrl,
-                    malUrl: null
-                };
             }
-        } else {
-            // URL non valide, stocker quand même
-            this.cache.customUrls[searchTerm] = {
-                anilistUrl: customUrl,
-                malUrl: null
-            };
         }
+
+        this.cache.customUrls[key] = entry;
 
         // Retirer des ignorés si nécessaire
-        if (this.cache.ignoredItems.includes(searchTerm)) {
-            this.cache.ignoredItems = this.cache.ignoredItems.filter(item => item !== searchTerm);
-        }
+        this.cache.ignoredItems = this.cache.ignoredItems.filter(item => item !== key);
 
-        // Retirer des items non trouvés si nécessaire
-        if (this.cache.items[searchTerm]) {
-            delete this.cache.items[searchTerm];
-        }
-
-        await this.saveCache();
+        // Sauvegarder immédiatement car c'est une action utilisateur explicite
+        await this._saveImmediate();
         return true;
     }
 
     /**
      * Extrait l'ID AniList à partir d'une URL
-     * @param {string} url - URL AniList
-     * @returns {string|null} ID AniList ou null si non trouvé
      */
-    extractAnilistId(url) {
+    _extractAnilistId(url) {
         try {
             const urlObj = new URL(url);
             if (urlObj.hostname === 'anilist.co') {
-                // Format attendu: https://anilist.co/anime/123456/titre-slug/
                 const pathParts = urlObj.pathname.split('/').filter(Boolean);
                 if (pathParts.length >= 2 && pathParts[0] === 'anime') {
                     const id = pathParts[1];
-                    if (/^\d+$/.test(id)) { // Vérifier que c'est un nombre
-                        return id;
-                    }
+                    if (/^\d+$/.test(id)) return id;
                 }
             }
             return null;
@@ -217,32 +208,23 @@ class AnimeCacheManager {
 
     /**
      * Récupère les données d'un anime via l'API AniList
-     * @param {string} id - ID AniList
-     * @returns {Object|null} Données de l'anime ou null en cas d'erreur
      */
-    async fetchAnilistMediaData(id) {
+    async _fetchAnilistMediaData(id) {
         try {
             const query = `
             query ($id: Int) {
                 Media (id: $id, type: ANIME) {
                     id
+                    idMal
                     title {
                         romaji
                         english
                         native
                     }
                     siteUrl
-                    externalLinks {
-                        url
-                        site
-                    }
                 }
             }
             `;
-
-            const variables = {
-                id: parseInt(id)
-            };
 
             const response = await fetch('https://graphql.anilist.co', {
                 method: 'POST',
@@ -252,24 +234,17 @@ class AnimeCacheManager {
                 },
                 body: JSON.stringify({
                     query: query,
-                    variables: variables
+                    variables: { id: parseInt(id) }
                 })
             });
 
             const data = await response.json();
 
-            if (data.data && data.data.Media) {
+            if (data.data?.Media) {
                 const media = data.data.Media;
-                // Rechercher l'URL MAL dans les liens externes
-                let malUrl = null;
-                if (media.externalLinks) {
-                    const malLink = media.externalLinks.find(link =>
-                        link.site === 'MyAnimeList' || link.url.includes('myanimelist.net')
-                    );
-                    if (malLink) {
-                        malUrl = malLink.url;
-                    }
-                }
+                const malUrl = media.idMal
+                    ? `https://myanimelist.net/anime/${media.idMal}`
+                    : null;
 
                 return {
                     title: media.title,
@@ -286,12 +261,11 @@ class AnimeCacheManager {
     }
 
     /**
-     * Récupère tous les animes non trouvés
+     * Récupère toutes les données du cache
      */
-    async getAllNotFoundAnimes() {
+    async getAllData() {
         await this.ensureCacheReady();
         return {
-            items: this.cache.items,
             customUrls: this.cache.customUrls,
             ignoredItems: this.cache.ignoredItems
         };
@@ -303,29 +277,38 @@ class AnimeCacheManager {
      */
     async removeAnime(searchTerm) {
         await this.ensureCacheReady();
+        const key = this._normalize(searchTerm);
 
         let modified = false;
 
-        if (this.cache.items[searchTerm]) {
-            delete this.cache.items[searchTerm];
+        if (this.cache.customUrls[key]) {
+            delete this.cache.customUrls[key];
             modified = true;
         }
-        if (this.cache.customUrls[searchTerm]) {
-            delete this.cache.customUrls[searchTerm];
-            modified = true;
-        }
-        if (this.cache.ignoredItems.includes(searchTerm)) {
-            this.cache.ignoredItems = this.cache.ignoredItems.filter(item => item !== searchTerm);
+        if (this.cache.ignoredItems.includes(key)) {
+            this.cache.ignoredItems = this.cache.ignoredItems.filter(item => item !== key);
             modified = true;
         }
 
         if (modified) {
-            await this.saveCache();
+            await this._saveImmediate();
             return true;
         }
         return false;
     }
+
+    /**
+     * Vide entièrement le cache
+     */
+    async clearAll() {
+        this.cache = {
+            customUrls: {},
+            ignoredItems: [],
+            version: 2
+        };
+        await this._saveImmediate();
+    }
 }
 
 // Exporter une instance unique
-export const animeCache = new AnimeCacheManager(); 
+export const animeCache = new AnimeCacheManager();

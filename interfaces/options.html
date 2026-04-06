@@ -7,76 +7,112 @@
   <link rel="stylesheet" href="../styles/options.css">
 </head>
 <body>
-  <a href="popup.html" class="back-link">Retour</a>
-  <div class="container">
-    <h1>Paramètres de l'extension</h1>
+  <div class="manager">
+    <div class="manager-header">
+      <a href="popup.html" class="back-btn" title="Retour">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </a>
+      <h1>Paramètres</h1>
+    </div>
 
-    <div class="settings-group">
-      <div class="setting-item">
-        <span class="setting-label">Couleur de fond</span>
-        <input type="color" id="background-color" name="background-color" value="#ffffff">
+    <div class="settings-group" data-collapsed="false">
+      <div class="settings-group-header" data-toggle="general">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Général</span>
       </div>
-
-      <div class="setting-item">
-        <span class="setting-label">Thème</span>
-        <select id="theme" name="theme">
-          <option value="light">Clair</option>
-          <option value="dark">Sombre</option>
-        </select>
-      </div>
-
-      <div class="setting-item">
-        <span class="setting-label">Activer la censure</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="censure" name="censure">
-          <span class="slider"></span>
-        </label>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">Couleur de fond</span>
+          <input type="color" id="background-color" name="background-color" value="#ffffff">
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Thème</span>
+          <select id="theme" name="theme">
+            <option value="light">Clair</option>
+            <option value="dark">Sombre</option>
+            <option value="purple">Violet</option>
+            <option value="ocean">Océan</option>
+            <option value="forest">Forêt</option>
+            <option value="sunset">Coucher de soleil</option>
+            <option value="cherry">Cerisier</option>
+            <option value="midnight">Minuit</option>
+          </select>
+        </div>
+        <div class="theme-preview" id="theme-preview">
+          <div class="theme-preview-bar"></div>
+          <div class="theme-preview-content">
+            <div class="theme-preview-text"></div>
+            <div class="theme-preview-text short"></div>
+          </div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Activer la censure</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="censure" name="censure">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
-    <div class="settings-group">
-      <h3>Boutons de switch d'anime</h3>
-      <div class="setting-item">
-        <span class="setting-label">MyAnimeList</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="enable-mal" name="enable-mal">
-          <span class="slider"></span>
-        </label>
+    <div class="settings-group" data-collapsed="false">
+      <div class="settings-group-header" data-toggle="anime">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Boutons de switch d'anime</span>
       </div>
-
-      <div class="setting-item">
-        <span class="setting-label">AniList</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="enable-anilist" name="enable-anilist">
-          <span class="slider"></span>
-        </label>
-      </div>
-    </div>
-
-    <div class="settings-group">
-      <div class="setting-item">
-        <span class="setting-label">Récupération automatique des rewards Twitch</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="enable-twitch-rewards" name="enable-twitch-rewards">
-          <span class="slider"></span>
-        </label>
-      </div>
-
-      <div class="setting-item">
-        <span class="setting-label">Afficher les notifications toast</span>
-        <label class="toggle-switch">
-          <input type="checkbox" id="enable-toasts" name="enable-toasts" checked>
-          <span class="slider"></span>
-        </label>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">MyAnimeList</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-mal" name="enable-mal">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">AniList</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-anilist" name="enable-anilist">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
-    <div class="settings-group">
-      <h3>Outils de développement</h3>
-      <div class="dev-tools">
-        <a href="toast-tester.html" class="dev-link">
-          🍞 Testeur de Toasts
-        </a>
+    <div class="settings-group" data-collapsed="false">
+      <div class="settings-group-header" data-toggle="features">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Fonctionnalités</span>
+      </div>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">Récupération auto des rewards Twitch</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-twitch-rewards" name="enable-twitch-rewards">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Notifications toast</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-toasts" name="enable-toasts" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group" data-collapsed="true">
+      <div class="settings-group-header" data-toggle="dev">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Outils de développement</span>
+      </div>
+      <div class="settings-group-content" style="display: none;">
+        <div class="dev-tools">
+          <a href="toast-tester.html" class="dev-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            Testeur de Toasts
+          </a>
+        </div>
       </div>
     </div>
   </div>

@@ -1,411 +1,396 @@
 import { animeCache } from '../scripts/anime-cache-manager.js';
-import { showToast } from '../libs/toast-manager.js';
+
+const ITEMS_PER_PAGE = 15;
+const SVG = {
+  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  delete: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`,
+  restore: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+  check: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+  x: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  anilist: `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M6.4 2H1v20h5.4V2zm5.2 4.7L8 22h5l.7-2.9h4.6L19 22h5L20.4 6.7h-8.8zm1.8 10.1l1.5-6.4h.2l1.5 6.4h-3.2z"/></svg>`,
+  mal: `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>`,
+};
+
+let allCustomUrls = [];
+let allIgnored = [];
+let customUrlsPage = 1;
+let ignoredPage = 1;
+let searchFilter = '';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Gestion des onglets
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    // Sélectionner le premier onglet par défaut
-    tabs[0].classList.add('active');
-    tabContents[0].classList.add('active');
-
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Retirer la classe active de tous les onglets
-            tabs.forEach(t => t.classList.remove('active'));
-            // Ajouter la classe active à l'onglet cliqué
-            tab.classList.add('active');
-
-            // Masquer tous les contenus d'onglet
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-            });
-
-            // Afficher le contenu d'onglet correspondant
-            const tabId = tab.getAttribute('data-tab');
-            document.getElementById(`${tabId}-tab`).classList.add('active');
-        });
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
     });
+  });
 
-    // Recherche d'animes
-    const searchInput = document.getElementById('search-input');
-    searchInput.addEventListener('input', () => {
-        const searchTerm = searchInput.value.toLowerCase();
-        filterAnimeItems(searchTerm);
-    });
+  // Search
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    searchFilter = e.target.value.toLowerCase();
+    customUrlsPage = 1;
+    ignoredPage = 1;
+    renderAll();
+  });
 
-    // Chargement initial des données
-    await loadAnimeData();
+  await loadData();
 
-    // Focus sur un anime spécifique si demandé
-    const params = new URLSearchParams(window.location.search);
-    const highlightTerm = params.get('highlight');
-    if (highlightTerm) {
-        highlightAnimeItem(highlightTerm);
-    }
+  // Highlight
+  const highlight = new URLSearchParams(window.location.search).get('highlight');
+  if (highlight) {
+    document.getElementById('search-input').value = highlight;
+    searchFilter = highlight.toLowerCase();
+    renderAll();
+  }
 });
 
-/**
- * Chargement des données d'anime depuis le cache
- */
-async function loadAnimeData() {
-    try {
-        const data = await animeCache.getAllNotFoundAnimes();
+async function loadData() {
+  const data = await animeCache.getAllData();
 
-        // Animes non trouvés
-        renderAnimeList('not-found', data.items, renderNotFoundItem);
+  allCustomUrls = Object.entries(data.customUrls)
+    .map(([key, val]) => ({ key, ...val }))
+    .sort((a, b) => (a.title || a.key).localeCompare(b.title || b.key));
 
-        // URLs personnalisées
-        const customUrlItems = Object.entries(data.customUrls).map(([searchTerm, url]) => ({
-            searchTerm,
-            url
-        }));
-        renderAnimeList('custom-urls', customUrlItems, renderCustomUrlItem);
+  allIgnored = data.ignoredItems
+    .map(key => ({ key }))
+    .sort((a, b) => a.key.localeCompare(b.key));
 
-        // Animes ignorés
-        const ignoredItems = data.ignoredItems.map(term => ({ searchTerm: term }));
-        renderAnimeList('ignored', ignoredItems, renderIgnoredItem);
-    } catch (error) {
-        console.error("Erreur lors du chargement des données:", error);
-        showToast("Erreur lors du chargement des données", { type: 'error' });
-    }
+  renderAll();
 }
 
-/**
- * Rendu d'une liste d'animes
- */
-function renderAnimeList(listType, items, renderFunction) {
-    const list = document.getElementById(`${listType}-list`);
-    const emptyMessage = document.getElementById(`${listType}-empty`);
+function renderAll() {
+  renderCustomUrls();
+  renderIgnored();
+}
 
-    // Vider la liste
-    list.innerHTML = '';
+function getFiltered(items, keyField = 'key') {
+  if (!searchFilter) return items;
+  return items.filter(item => {
+    const title = (item.title || item[keyField] || '').toLowerCase();
+    const key = (item[keyField] || '').toLowerCase();
+    return title.includes(searchFilter) || key.includes(searchFilter);
+  });
+}
 
-    if (Object.keys(items).length === 0) {
-        list.style.display = 'none';
-        emptyMessage.style.display = 'block';
-        return;
-    }
+// ─── Custom URLs ─────────────────────────────────────────
 
-    list.style.display = 'block';
-    emptyMessage.style.display = 'none';
+function renderCustomUrls() {
+  const filtered = getFiltered(allCustomUrls);
+  const container = document.getElementById('custom-urls-list');
+  const empty = document.getElementById('custom-urls-empty');
+  const pagContainer = document.getElementById('custom-urls-pagination');
 
-    // Trier les éléments par titre ou terme de recherche
-    const sortedItems = Array.isArray(items)
-        ? items
-        : Object.values(items).sort((a, b) =>
-            (a.title || a.searchTerm).localeCompare(b.title || b.searchTerm)
-        );
+  container.innerHTML = '';
+  pagContainer.innerHTML = '';
 
-    // Générer les éléments de liste
-    sortedItems.forEach(item => {
-        const listItem = document.createElement('li');
-        listItem.className = 'anime-item';
-        listItem.dataset.searchTerm = item.searchTerm.toLowerCase();
-        listItem.innerHTML = renderFunction(item);
-        list.appendChild(listItem);
+  if (filtered.length === 0) {
+    container.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+
+  container.style.display = 'flex';
+  empty.style.display = 'none';
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  customUrlsPage = Math.min(customUrlsPage, totalPages);
+  const start = (customUrlsPage - 1) * ITEMS_PER_PAGE;
+  const pageItems = filtered.slice(start, start + ITEMS_PER_PAGE);
+
+  for (const item of pageItems) {
+    container.appendChild(createCustomUrlItem(item));
+  }
+
+  if (totalPages > 1) {
+    renderPagination(pagContainer, customUrlsPage, totalPages, (p) => {
+      customUrlsPage = p;
+      renderCustomUrls();
     });
-
-    // Ajouter les écouteurs d'événements après le rendu
-    attachEventListeners(listType);
+  }
 }
 
-/**
- * Rendu d'un élément d'anime non trouvé
- */
-function renderNotFoundItem(item) {
-    return `
-        <div class="anime-title">${item.title || item.searchTerm}</div>
-        <div class="anime-search-term">Terme de recherche : ${item.searchTerm}</div>
-        <div class="anime-source">Source : <a href="${item.sourceUrl}" target="_blank">${item.sourceUrl}</a></div>
-        <div class="anime-actions">
-            <button class="btn btn-primary search-anilist" data-search="${item.searchTerm}">
-                Rechercher sur AniList
-            </button>
-            <div class="url-input">
-                <input type="text" placeholder="URL AniList personnalisée" class="custom-url-input">
-                <button class="btn btn-success save-custom-url" data-search="${item.searchTerm}">
-                    Enregistrer
-                </button>
-            </div>
-            <button class="btn btn-danger ignore-anime" data-search="${item.searchTerm}">
-                Ignorer
-            </button>
-        </div>
-    `;
-}
+function createCustomUrlItem(item) {
+  const el = document.createElement('div');
+  el.className = 'anime-item';
+  el.dataset.key = item.key;
 
-/**
- * Rendu d'un élément d'URL personnalisée
- */
-function renderCustomUrlItem(item) {
-    const anilistUrl = item.url?.anilistUrl || item.url;
-    const malUrl = item.url?.malUrl || null;
+  const info = document.createElement('div');
+  info.className = 'anime-item-info';
 
-    return `
-        <div class="anime-title">${item.searchTerm}</div>
-        <div class="anime-source">
-            URL AniList : <a href="${anilistUrl}" target="_blank">${anilistUrl}</a>
-            ${malUrl ? `<br>URL MyAnimeList : <a href="${malUrl}" target="_blank">${malUrl}</a>` : ''}
-        </div>
-        <div class="anime-actions">
-            <div class="url-input">
-                <input type="text" value="${anilistUrl}" class="custom-url-input" placeholder="URL AniList">
-                <button class="btn btn-success update-custom-url" data-search="${item.searchTerm}">
-                    Mettre à jour
-                </button>
-            </div>
-            <button class="btn btn-danger remove-custom-url" data-search="${item.searchTerm}">
-                Supprimer
-            </button>
-        </div>
-    `;
-}
+  const title = document.createElement('div');
+  title.className = 'anime-item-title';
+  title.textContent = item.title || item.key;
+  title.title = item.key;
 
-/**
- * Rendu d'un élément d'anime ignoré
- */
-function renderIgnoredItem(item) {
-    return `
-        <div class="anime-title">${item.searchTerm}</div>
-        <div class="anime-actions">
-            <button class="btn btn-primary search-anilist" data-search="${item.searchTerm}">
-                Rechercher sur AniList
-            </button>
-            <div class="url-input">
-                <input type="text" placeholder="URL AniList personnalisée" class="custom-url-input">
-                <button class="btn btn-success save-custom-url" data-search="${item.searchTerm}">
-                    Ajouter URL
-                </button>
-            </div>
-            <button class="btn btn-success restore-anime" data-search="${item.searchTerm}">
-                Restaurer
-            </button>
-        </div>
-    `;
-}
+  const urls = document.createElement('div');
+  urls.className = 'anime-item-urls';
 
-/**
- * Filtrer les éléments d'anime selon un terme de recherche
- */
-function filterAnimeItems(searchTerm) {
-    const allItems = document.querySelectorAll('.anime-item');
+  if (item.anilistUrl) {
+    const a = document.createElement('a');
+    a.href = item.anilistUrl;
+    a.target = '_blank';
+    a.innerHTML = `${SVG.anilist} AniList`;
+    urls.appendChild(a);
+  }
+  if (item.malUrl) {
+    const a = document.createElement('a');
+    a.href = item.malUrl;
+    a.target = '_blank';
+    a.innerHTML = `${SVG.mal} MAL`;
+    urls.appendChild(a);
+  }
 
-    allItems.forEach(item => {
-        const itemSearchTerm = item.dataset.searchTerm;
-        const shouldShow = !searchTerm || itemSearchTerm.includes(searchTerm.toLowerCase());
-        item.style.display = shouldShow ? 'block' : 'none';
-    });
+  info.appendChild(title);
+  info.appendChild(urls);
 
-    // Mettre à jour les messages vides
-    updateEmptyMessages();
-}
+  // Edit zone (hidden by default)
+  const editZone = document.createElement('div');
+  editZone.className = 'anime-item-edit';
 
-/**
- * Mettre à jour l'affichage des messages vides
- */
-function updateEmptyMessages() {
-    const tabContents = document.querySelectorAll('.tab-content');
+  const editInput = document.createElement('input');
+  editInput.type = 'text';
+  editInput.value = item.anilistUrl || '';
+  editInput.placeholder = 'https://anilist.co/anime/...';
 
-    tabContents.forEach(content => {
-        const list = content.querySelector('.anime-list');
-        const emptyMessage = content.querySelector('.empty-message');
-        const visibleItems = Array.from(list.querySelectorAll('.anime-item')).filter(item =>
-            item.style.display !== 'none'
-        );
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'save-btn';
+  saveBtn.innerHTML = SVG.check;
+  saveBtn.title = 'Sauvegarder';
 
-        if (visibleItems.length === 0) {
-            list.style.display = 'none';
-            emptyMessage.style.display = 'block';
-        } else {
-            list.style.display = 'block';
-            emptyMessage.style.display = 'none';
-        }
-    });
-}
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'cancel-btn';
+  cancelBtn.innerHTML = SVG.x;
+  cancelBtn.title = 'Annuler';
 
-/**
- * Mettre en évidence un élément d'anime spécifique
- */
-function highlightAnimeItem(searchTerm) {
-    if (!searchTerm) return;
+  editZone.appendChild(editInput);
+  editZone.appendChild(saveBtn);
+  editZone.appendChild(cancelBtn);
 
-    // Rechercher l'élément dans tous les onglets
-    const allItems = document.querySelectorAll('.anime-item');
-    let found = false;
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'anime-item-actions';
 
-    allItems.forEach(item => {
-        if (item.dataset.searchTerm === searchTerm.toLowerCase()) {
-            // Mettre en évidence l'élément
-            item.classList.add('highlight');
+  const editBtn = document.createElement('button');
+  editBtn.className = 'icon-btn edit';
+  editBtn.innerHTML = SVG.edit;
+  editBtn.title = 'Modifier';
 
-            // Défiler jusqu'à l'élément
-            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'icon-btn delete';
+  deleteBtn.innerHTML = SVG.delete;
+  deleteBtn.title = 'Supprimer';
 
-            // Ouvrir l'onglet approprié
-            const tabContent = item.closest('.tab-content');
-            if (tabContent) {
-                const tabId = tabContent.id.replace('-tab', '');
-                document.querySelector(`.tab[data-tab="${tabId}"]`).click();
-            }
+  actions.appendChild(editBtn);
+  actions.appendChild(deleteBtn);
 
-            found = true;
-        } else {
-            item.classList.remove('highlight');
-        }
-    });
+  el.appendChild(info);
+  el.appendChild(actions);
+  el.appendChild(editZone);
 
-    // Si l'élément n'est pas trouvé, essayer de le rechercher
-    if (!found) {
-        document.getElementById('search-input').value = searchTerm;
-        filterAnimeItems(searchTerm);
+  // Events
+  editBtn.addEventListener('click', () => {
+    el.classList.toggle('editing');
+    editZone.classList.toggle('active');
+    if (editZone.classList.contains('active')) {
+      editInput.focus();
+      editInput.select();
     }
-}
+  });
 
-/**
- * Attacher les écouteurs d'événements après le rendu
- */
-function attachEventListeners(listType) {
-    try {
-        // Actions spécifiques aux animes non trouvés
-        if (listType === 'not-found') {
-            // Rechercher sur AniList
-            document.querySelectorAll('#not-found-list .search-anilist').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const searchTerm = btn.dataset.search;
-                    const anilistSearchUrl = `https://anilist.co/search/anime?search=${encodeURIComponent(searchTerm)}`;
-                    window.open(anilistSearchUrl, '_blank');
-                });
-            });
+  cancelBtn.addEventListener('click', () => {
+    el.classList.remove('editing');
+    editZone.classList.remove('active');
+    editInput.value = item.anilistUrl || '';
+  });
 
-            // Enregistrer une URL personnalisée
-            document.querySelectorAll('#not-found-list .save-custom-url').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    const inputElement = btn.parentElement.querySelector('.custom-url-input');
-                    const customUrl = inputElement.value.trim();
-
-                    if (!customUrl) {
-                        showToast('Veuillez entrer une URL valide', { type: 'error' });
-                        return;
-                    }
-
-                    if (!isValidAnilistUrl(customUrl)) {
-                        showToast('L\'URL doit être une URL AniList valide', { type: 'error' });
-                        return;
-                    }
-
-                    await animeCache.setCustomUrl(searchTerm, customUrl);
-                    showToast('URL personnalisée enregistrée', { type: 'success' });
-                    await loadAnimeData(); // Recharger les données
-                });
-            });
-
-            // Ignorer un anime
-            document.querySelectorAll('#not-found-list .ignore-anime').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    await animeCache.ignoreAnime(searchTerm);
-                    showToast('Anime ignoré', { type: 'success' });
-                    await loadAnimeData(); // Recharger les données
-                });
-            });
-        }
-
-        // Actions spécifiques aux URLs personnalisées
-        else if (listType === 'custom-urls') {
-            // Mettre à jour une URL personnalisée
-            document.querySelectorAll('#custom-urls-list .update-custom-url').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    const inputElement = btn.parentElement.querySelector('.custom-url-input');
-                    const customUrl = inputElement.value.trim();
-
-                    if (!customUrl) {
-                        showToast('Veuillez entrer une URL valide', { type: 'error' });
-                        return;
-                    }
-
-                    if (!isValidAnilistUrl(customUrl)) {
-                        showToast('L\'URL doit être une URL AniList valide', { type: 'error' });
-                        return;
-                    }
-
-                    await animeCache.setCustomUrl(searchTerm, customUrl);
-                    showToast('URL personnalisée mise à jour', { type: 'success' });
-                });
-            });
-
-            // Supprimer une URL personnalisée
-            document.querySelectorAll('#custom-urls-list .remove-custom-url').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    await animeCache.removeAnime(searchTerm);
-                    showToast('URL personnalisée supprimée', { type: 'success' });
-                    await loadAnimeData(); // Recharger les données
-                });
-            });
-        }
-
-        // Actions spécifiques aux animes ignorés
-        else if (listType === 'ignored') {
-            // Rechercher sur AniList
-            document.querySelectorAll('#ignored-list .search-anilist').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const searchTerm = btn.dataset.search;
-                    const anilistSearchUrl = `https://anilist.co/search/anime?search=${encodeURIComponent(searchTerm)}`;
-                    window.open(anilistSearchUrl, '_blank');
-                });
-            });
-
-            // Ajouter une URL personnalisée pour un anime ignoré
-            document.querySelectorAll('#ignored-list .save-custom-url').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    const inputElement = btn.parentElement.querySelector('.custom-url-input');
-                    const customUrl = inputElement.value.trim();
-
-                    if (!customUrl) {
-                        showToast('Veuillez entrer une URL valide', { type: 'error' });
-                        return;
-                    }
-
-                    if (!isValidAnilistUrl(customUrl)) {
-                        showToast('L\'URL doit être une URL AniList valide', { type: 'error' });
-                        return;
-                    }
-
-                    await animeCache.setCustomUrl(searchTerm, customUrl);
-                    showToast('URL personnalisée ajoutée et anime restauré', { type: 'success' });
-                    await loadAnimeData(); // Recharger les données
-                });
-            });
-
-            // Restaurer un anime ignoré
-            document.querySelectorAll('#ignored-list .restore-anime').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const searchTerm = btn.dataset.search;
-                    await animeCache.removeAnime(searchTerm);
-                    showToast('Anime restauré', { type: 'success' });
-                    await loadAnimeData(); // Recharger les données
-                });
-            });
-        }
-    } catch (error) {
-        console.error("Erreur lors de l'attache des événements:", error);
-        showToast("Erreur lors de l'initialisation des boutons", { type: 'error' });
+  saveBtn.addEventListener('click', async () => {
+    const url = editInput.value.trim();
+    if (!url || !isValidAnilistUrl(url)) {
+      editInput.style.borderColor = '#F44336';
+      setTimeout(() => editInput.style.borderColor = '', 1500);
+      return;
     }
+    await animeCache.setCustomUrl(item.key, url);
+    await loadData();
+  });
+
+  editInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveBtn.click();
+    if (e.key === 'Escape') cancelBtn.click();
+  });
+
+  deleteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    el.style.opacity = '0.5';
+    el.style.pointerEvents = 'none';
+    await animeCache.removeAnime(item.key);
+    allCustomUrls = allCustomUrls.filter(i => i.key !== item.key);
+    renderAll();
+  });
+
+  return el;
 }
 
-/**
- * Vérifier si une URL est une URL AniList valide
- */
+// ─── Ignored ─────────────────────────────────────────────
+
+function renderIgnored() {
+  const filtered = getFiltered(allIgnored);
+  const container = document.getElementById('ignored-list');
+  const empty = document.getElementById('ignored-empty');
+  const pagContainer = document.getElementById('ignored-pagination');
+
+  container.innerHTML = '';
+  pagContainer.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+
+  container.style.display = 'flex';
+  empty.style.display = 'none';
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  ignoredPage = Math.min(ignoredPage, totalPages);
+  const start = (ignoredPage - 1) * ITEMS_PER_PAGE;
+  const pageItems = filtered.slice(start, start + ITEMS_PER_PAGE);
+
+  for (const item of pageItems) {
+    container.appendChild(createIgnoredItem(item));
+  }
+
+  if (totalPages > 1) {
+    renderPagination(pagContainer, ignoredPage, totalPages, (p) => {
+      ignoredPage = p;
+      renderIgnored();
+    });
+  }
+}
+
+function createIgnoredItem(item) {
+  const el = document.createElement('div');
+  el.className = 'anime-item';
+
+  const info = document.createElement('div');
+  info.className = 'anime-item-info';
+
+  const title = document.createElement('div');
+  title.className = 'anime-item-title';
+  title.textContent = item.key;
+
+  info.appendChild(title);
+
+  const actions = document.createElement('div');
+  actions.className = 'anime-item-actions';
+
+  const restoreBtn = document.createElement('button');
+  restoreBtn.className = 'icon-btn restore';
+  restoreBtn.innerHTML = SVG.restore;
+  restoreBtn.title = 'Restaurer';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'icon-btn delete';
+  deleteBtn.innerHTML = SVG.delete;
+  deleteBtn.title = 'Supprimer définitivement';
+
+  actions.appendChild(restoreBtn);
+  actions.appendChild(deleteBtn);
+
+  el.appendChild(info);
+  el.appendChild(actions);
+
+  restoreBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    el.style.opacity = '0.5';
+    el.style.pointerEvents = 'none';
+    await animeCache.removeAnime(item.key);
+    allIgnored = allIgnored.filter(i => i.key !== item.key);
+    renderAll();
+  });
+
+  deleteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    el.style.opacity = '0.5';
+    el.style.pointerEvents = 'none';
+    await animeCache.removeAnime(item.key);
+    allIgnored = allIgnored.filter(i => i.key !== item.key);
+    renderAll();
+  });
+
+  return el;
+}
+
+// ─── Pagination ──────────────────────────────────────────
+
+function renderPagination(container, currentPage, totalPages, onPageChange) {
+  // Prev
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'page-btn';
+  prevBtn.innerHTML = '&lsaquo;';
+  prevBtn.disabled = currentPage <= 1;
+  prevBtn.addEventListener('click', () => onPageChange(currentPage - 1));
+  container.appendChild(prevBtn);
+
+  // Page numbers
+  const maxVisible = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+  if (endPage - startPage < maxVisible - 1) {
+    startPage = Math.max(1, endPage - maxVisible + 1);
+  }
+
+  if (startPage > 1) {
+    container.appendChild(createPageBtn(1, currentPage, onPageChange));
+    if (startPage > 2) {
+      const dots = document.createElement('span');
+      dots.className = 'page-info';
+      dots.textContent = '...';
+      container.appendChild(dots);
+    }
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    container.appendChild(createPageBtn(i, currentPage, onPageChange));
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const dots = document.createElement('span');
+      dots.className = 'page-info';
+      dots.textContent = '...';
+      container.appendChild(dots);
+    }
+    container.appendChild(createPageBtn(totalPages, currentPage, onPageChange));
+  }
+
+  // Next
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'page-btn';
+  nextBtn.innerHTML = '&rsaquo;';
+  nextBtn.disabled = currentPage >= totalPages;
+  nextBtn.addEventListener('click', () => onPageChange(currentPage + 1));
+  container.appendChild(nextBtn);
+}
+
+function createPageBtn(page, currentPage, onPageChange) {
+  const btn = document.createElement('button');
+  btn.className = `page-btn${page === currentPage ? ' active' : ''}`;
+  btn.textContent = page;
+  btn.addEventListener('click', () => onPageChange(page));
+  return btn;
+}
+
+// ─── Utils ───────────────────────────────────────────────
+
 function isValidAnilistUrl(url) {
-    try {
-        const urlObj = new URL(url);
-        return urlObj.hostname === 'anilist.co' && urlObj.pathname.includes('/anime/');
-    } catch (e) {
-        return false;
-    }
-} 
+  try {
+    const u = new URL(url);
+    return u.hostname === 'anilist.co' && u.pathname.includes('/anime/');
+  } catch {
+    return false;
+  }
+}

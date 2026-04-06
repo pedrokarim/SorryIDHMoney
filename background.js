@@ -5,6 +5,24 @@ import {
   getCachedDataByTerm,
 } from "./scripts/cache.js";
 
+// Cache mémoire pour éviter de spammer l'API AniList (durée de vie = durée du service worker)
+const apiCache = new Map();
+const API_CACHE_TTL = 10 * 60 * 1000; // 10 minutes en mémoire
+
+function getApiCache(key) {
+  const entry = apiCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > API_CACHE_TTL) {
+    apiCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setApiCache(key, data) {
+  apiCache.set(key, { data, timestamp: Date.now() });
+}
+
 // Fonction pour nettoyer les termes de recherche
 function sanitizeSearchTerm(search) {
   if (!search) return '';
@@ -22,7 +40,7 @@ function sanitizeSearchTerm(search) {
     .trim();
 }
 
-async function getAnilistMediaInfo(search, typePreference) {
+async function getAnilistMediaInfo(search) {
   // Applique la sanitization avant la recherche
   const sanitizedSearch = sanitizeSearchTerm(search);
 
@@ -31,8 +49,16 @@ async function getAnilistMediaInfo(search, typePreference) {
     sanitizedSearch
   )
 
-  const query = `query ($search: String, $typePreference: MediaType) {
-            Media(search: $search, type: $typePreference) {
+  // Vérifier le cache mémoire
+  const cacheKey = `anilist:${sanitizedSearch.toLowerCase()}`;
+  const cached = getApiCache(cacheKey);
+  if (cached !== null) {
+    console.log("Cache hit for:", sanitizedSearch);
+    return cached;
+  }
+
+  const query = `query ($search: String) {
+            Media(search: $search, type: ANIME) {
                 id
                 idMal
                 siteUrl
@@ -41,7 +67,6 @@ async function getAnilistMediaInfo(search, typePreference) {
         }`;
   const variables = {
     search: sanitizedSearch,
-    typePreference,
   };
   const url = "https://graphql.anilist.co";
   const res = await fetch(url, {
@@ -57,7 +82,7 @@ async function getAnilistMediaInfo(search, typePreference) {
     .then((response) => response.json())
     .catch((_) => null);
   const idMal = res?.data?.Media?.idMal;
-  return res?.data?.Media
+  const result = res?.data?.Media
     ? {
       ...res?.data?.Media,
       siteMalUrl: idMal
@@ -65,6 +90,11 @@ async function getAnilistMediaInfo(search, typePreference) {
         : null,
     }
     : null;
+
+  // Mettre en cache le résultat (même null pour éviter de re-requêter)
+  setApiCache(cacheKey, result);
+
+  return result;
 }
 
 // Listen for messages from the content script
@@ -77,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "getAnilistMedia":
       console.log("Received demand media from anilist: ", message);
       if (message.search) {
-        getAnilistMediaInfo(message.search, message?.typePreference).then((res) => {
+        getAnilistMediaInfo(message.search).then((res) => {
           console.log("And the response is: ", res);
           sendResponse(res);
         });
