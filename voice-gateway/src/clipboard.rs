@@ -46,8 +46,13 @@ pub fn read_clipboard() -> Result<String, Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
 
+    fn has_display() -> bool {
+        std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok() || cfg!(windows)
+    }
+
     #[test]
     fn copy_and_read_roundtrip() {
+        if !has_display() { return; }
         let text = "Voice Gateway test 12345";
         copy_to_clipboard(text).expect("copy failed");
         let result = read_clipboard().expect("read failed");
@@ -56,6 +61,7 @@ mod tests {
 
     #[test]
     fn copy_only_does_not_crash() {
+        if !has_display() { return; }
         copy_only("test copy only").expect("copy_only failed");
         let result = read_clipboard().expect("read failed");
         assert_eq!(result, "test copy only");
@@ -63,6 +69,7 @@ mod tests {
 
     #[test]
     fn copy_empty_string() {
+        if !has_display() { return; }
         copy_to_clipboard("").expect("copy empty failed");
         let result = read_clipboard().expect("read failed");
         assert_eq!(result, "");
@@ -70,6 +77,7 @@ mod tests {
 
     #[test]
     fn copy_unicode() {
+        if !has_display() { return; }
         let text = "Bonjour à tous ! 日本語 🎤";
         copy_to_clipboard(text).expect("copy unicode failed");
         let result = read_clipboard().expect("read failed");
@@ -78,6 +86,7 @@ mod tests {
 
     #[test]
     fn copy_long_text() {
+        if !has_display() { return; }
         let text = "a".repeat(10_000);
         copy_to_clipboard(&text).expect("copy long failed");
         let result = read_clipboard().expect("read failed");
