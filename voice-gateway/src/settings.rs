@@ -81,10 +81,24 @@ impl AppSettings {
 }
 
 pub fn storage_dir() -> PathBuf {
-    std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("VoiceGateway")
+    #[cfg(windows)]
+    {
+        std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("VoiceGateway")
+    }
+    #[cfg(not(windows))]
+    {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                std::env::var_os("HOME")
+                    .map(|h| PathBuf::from(h).join(".config"))
+                    .unwrap_or_else(|| PathBuf::from("."))
+            })
+            .join("VoiceGateway")
+    }
 }
 
 pub fn storage_path() -> PathBuf {

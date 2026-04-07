@@ -74,6 +74,7 @@ type SharedHistory = Arc<Mutex<Vec<HistoryEntry>>>;
 #[derive(Default)]
 struct UiRequests {
     show_window: AtomicBool,
+    hide_window: AtomicBool,
     hotkey_pressed: AtomicBool,
     extension_connected: AtomicBool,
 }
@@ -375,7 +376,14 @@ impl VoiceGatewayApp {
             return;
         };
 
-        match Command::new("cmd").args(["/C", "start", "", &url]).spawn() {
+        #[cfg(windows)]
+        let result = Command::new("cmd").args(["/C", "start", "", &url]).spawn();
+        #[cfg(target_os = "linux")]
+        let result = Command::new("xdg-open").arg(&url).spawn();
+        #[cfg(target_os = "macos")]
+        let result = Command::new("open").arg(&url).spawn();
+
+        match result {
             Ok(_) => {
                 self.last_error = None;
             }
@@ -390,12 +398,25 @@ impl VoiceGatewayApp {
     fn process_ui_requests(&mut self, ctx: &egui::Context) {
         if self.ui_requests.show_window.swap(false, Ordering::SeqCst) {
             self.window_hidden = false;
+            #[cfg(not(windows))]
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
             ctx.request_repaint();
+        }
+
+        if self.ui_requests.hide_window.swap(false, Ordering::SeqCst) {
+            self.window_hidden = true;
+            #[cfg(not(windows))]
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
 
         if self.ui_requests.hotkey_pressed.swap(false, Ordering::SeqCst) {
             self.window_hidden = false;
             self.last_error = None;
+            #[cfg(not(windows))]
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         }
     }
 
@@ -434,6 +455,8 @@ impl VoiceGatewayApp {
             CloseAction::HideToTray => {
                 self.window_controller.hide();
                 self.window_hidden = true;
+                #[cfg(not(windows))]
+                self.ui_requests.hide_window.store(true, Ordering::SeqCst);
             }
             CloseAction::QuitApp => std::process::exit(0),
         }
@@ -1483,6 +1506,9 @@ fn main() {
     if std::net::TcpListener::bind(format!("127.0.0.1:{}", ws_server::WS_PORT)).is_err() {
         std::process::exit(0);
     }
+
+    #[cfg(target_os = "linux")]
+    gtk::init().expect("Failed to initialize GTK");
 
     let app_settings = AppSettings::load();
     let tray = tray::Tray::new().expect("Failed to create tray icon");
