@@ -53,6 +53,22 @@
       "run_at": "document_idle"
     },
     {
+      "matches": ["https://www.adkami.com/*"],
+      "js": ["scripts/adkami-content.js"],
+      "type": "module"
+    },
+    {
+      "matches": ["https://animationdigitalnetwork.com/*"],
+      "js": ["scripts/adn-content.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gum-gum-streaming.com/*"],
+      "js": ["scripts/gumgum-content.js"],
+      "type": "module"
+    },
+    {
       "matches": [
         "https://myanimelist.net/*",
         "https://anilist.co/*",

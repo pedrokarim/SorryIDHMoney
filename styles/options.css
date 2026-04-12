@@ -176,6 +176,16 @@ select:focus {
   width: 40%;
 }
 
+/* Platform icons */
+.platform-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 3px;
+}
+
 /* Dev tools */
 .dev-tools {
   padding: 4px 0;

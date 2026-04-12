@@ -1,4 +1,7 @@
 // by @AliasPedroKarim
+// NOTE: mavanimes.cc / mavanimes.ws est actuellement down (avril 2026).
+// Le code est conservé au cas où le site reviendrait.
+//
 // The code adds a search bar to a webpage and filters a list of anime
 // titles based on the user's input in real-time. It uses a function to find a
 // case-insensitive substring in a string.
@@ -150,6 +153,12 @@ if ([
 }
 
 (async () => {
+  // Vérifier si la plateforme est activée
+  const { enableMavanimes } = await new Promise(r =>
+    chrome.storage.sync.get({ enableMavanimes: true }, r)
+  );
+  if (!enableMavanimes) return;
+
   // Charger les modules de manière asynchrone
   const [cacheModule] = await Promise.all([
     import(animeCacheScript)

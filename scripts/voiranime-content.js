@@ -57,6 +57,12 @@ function extractAnimeTitle() {
 // Fonction principale qui s'exécute une fois tous les modules chargés
 async function main() {
   try {
+    // Vérifier si la plateforme est activée
+    const { enableVoiranime } = await new Promise(r =>
+      chrome.storage.sync.get({ enableVoiranime: true }, r)
+    );
+    if (!enableVoiranime) return;
+
     // Charger tous les modules nécessaires
     const [cacheModule, utilsModule] = await Promise.all([
       import(animeCacheScript),

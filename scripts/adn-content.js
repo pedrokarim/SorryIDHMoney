@@ -1,6 +1,7 @@
 // by @AliasPedroKarim
-// Injecte les boutons AniList / MAL / Info sur les pages Crunchyroll
-// Supporte les pages série (/series/) et épisode (/watch/)
+// Injecte les boutons AniList / MAL / Info sur les pages ADN (Animation Digital Network)
+// Supporte les pages série (/video/{id}-{slug}) et épisode (/video/{id}-{slug}/{epId}-episode-{n})
+// ADN est une SPA React — retry polling comme Crunchyroll
 
 const srcUtils = chrome.runtime.getURL("scripts/utils.js");
 const animeCacheScript = chrome.runtime.getURL("scripts/anime-cache-manager.js");
@@ -9,71 +10,59 @@ let animeCache;
 let utils;
 
 /**
- * Extrait le titre de l'anime depuis la page Crunchyroll.
- * Priorité au JSON-LD (données structurées, stables) puis fallback DOM.
+ * Extrait le titre de l'anime depuis le JSON-LD (priorité) puis fallback DOM.
+ * - Page série : TVSeries.name
+ * - Page épisode : TVEpisode.partOfSeries.name
  */
 function extractAnimeTitle() {
   const path = window.location.pathname;
 
-  const isSeriesPage = /^\/[a-z]{2}\/series\//.test(path);
-  const isWatchPage = /^\/[a-z]{2}\/watch\//.test(path);
+  // /video/{id}-{slug} (série) ou /video/{id}-{slug}/{epId}-episode-{n} (épisode)
+  const isVideoPage = /^\/video\/\d+-.+/.test(path);
+  if (!isVideoPage) return null;
 
-  if (!isSeriesPage && !isWatchPage) return null;
+  const segments = path.replace(/^\/video\//, "").split("/").filter(Boolean);
+  const isEpisodePage = segments.length >= 2;
 
-  // 1. JSON-LD (source de vérité la plus fiable)
-  const ldTitle = extractTitleFromJsonLd(isWatchPage);
+  // 1. JSON-LD
+  const ldTitle = extractTitleFromJsonLd(isEpisodePage);
   if (ldTitle) return ldTitle;
 
-  // 2. Fallback DOM
-  if (isWatchPage) {
-    const showLink = document.querySelector('a[data-t="show-title-link"]');
-    if (showLink) return showLink.textContent.trim();
-
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
-    if (ogTitle && ogTitle.includes(" | ")) return ogTitle.split(" | ")[0].trim();
-  }
-
-  if (isSeriesPage) {
+  // 2. Fallback DOM — h1 (sur la page série c'est propre, sur épisode c'est concaténé)
+  if (!isEpisodePage) {
     const h1 = document.querySelector("h1");
     if (h1) return h1.textContent.trim();
-
-    const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
-    if (ogTitle) return ogTitle.replace(/^Watch\s+/i, "").trim();
   }
+
+  // 3. og:title — "Titre - Anime en streaming..." (série) ou "Titre - 1 Épisode..." (épisode)
+  const ogTitle = document.querySelector('meta[property="og:title"]')?.content;
+  if (ogTitle) return ogTitle.split(" - ")[0].trim();
 
   return null;
 }
 
-/**
- * Extrait le titre de la série depuis les blocs JSON-LD.
- * - Page épisode : TVEpisode.partOfSeries.name (clean)
- * - Page série  : TVSeries.name (strip "Watch " prefix) ou BreadcrumbList
- */
-function extractTitleFromJsonLd(isWatchPage) {
+function extractTitleFromJsonLd(isEpisodePage) {
   try {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
     for (const script of scripts) {
       const data = JSON.parse(script.textContent);
 
-      // Page épisode → TVEpisode.partOfSeries.name (le plus propre)
-      if (isWatchPage && data["@type"] === "TVEpisode" && data.partOfSeries?.name) {
+      // Page épisode → TVEpisode.partOfSeries.name
+      if (isEpisodePage && data["@type"] === "TVEpisode" && data.partOfSeries?.name) {
         return data.partOfSeries.name;
       }
 
-      // Page série → TVSeries.name (a un prefix "Watch ")
-      if (!isWatchPage && data["@type"] === "TVSeries" && data.name) {
-        return data.name.replace(/^Watch\s+/i, "").trim();
+      // Page série → TVSeries.name
+      if (!isEpisodePage && data["@type"] === "TVSeries" && data.name) {
+        return data.name;
       }
     }
   } catch {
-    // JSON invalide, on ignore
+    // JSON invalide
   }
   return null;
 }
 
-/**
- * Extrait l'ID AniList depuis une URL anilist.co/anime/<id>
- */
 function extractAnilistIdFromUrl(url) {
   try {
     const u = new URL(url);
@@ -91,10 +80,10 @@ function extractAnilistIdFromUrl(url) {
 async function main() {
   try {
     // Vérifier si la plateforme est activée
-    const { enableCrunchyroll } = await new Promise(r =>
-      chrome.storage.sync.get({ enableCrunchyroll: true }, r)
+    const { enableAdn } = await new Promise(r =>
+      chrome.storage.sync.get({ enableAdn: true }, r)
     );
-    if (!enableCrunchyroll) return;
+    if (!enableAdn) return;
 
     const [cacheModule, utilsModule] = await Promise.all([
       import(animeCacheScript),
@@ -107,12 +96,12 @@ async function main() {
     await animeCache.ensureCacheReady();
     await waitForTitleAndInit();
   } catch (error) {
-    console.error("[Crunchyroll] Erreur lors du chargement des modules:", error);
+    console.error("[ADN] Erreur lors du chargement des modules:", error);
   }
 }
 
 /**
- * Attend que le titre soit détectable (React peut mettre du temps à render).
+ * Attend que le titre soit détectable (React SPA).
  * Polling toutes les 500ms, max 15 tentatives (7.5s).
  */
 async function waitForTitleAndInit() {
@@ -122,7 +111,7 @@ async function waitForTitleAndInit() {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const title = extractAnimeTitle();
     if (title) {
-      console.log(`[Crunchyroll] Titre trouvé (tentative ${attempt}): "${title}"`);
+      console.log(`[ADN] Titre trouvé (tentative ${attempt}): "${title}"`);
       initializeAnimeDetection(title);
       return;
     }
@@ -132,7 +121,7 @@ async function waitForTitleAndInit() {
     }
   }
 
-  console.log("[Crunchyroll] Aucun titre trouvé après polling — page non supportée ou DOM incomplet");
+  console.log("[ADN] Aucun titre trouvé après polling");
 }
 
 function initializeAnimeDetection(animeTitleRaw) {
@@ -188,16 +177,15 @@ function initializeAnimeDetection(animeTitleRaw) {
     }
   });
 
-  // Vérification cache puis recherche API
   (async () => {
     try {
       const cachedResult = await animeCache.isInCache(animeTitle);
 
       if (cachedResult === true) {
-        console.log(`[Crunchyroll] Anime ignoré: ${animeTitle}`);
+        console.log(`[ADN] Anime ignoré: ${animeTitle}`);
         return;
       } else if (cachedResult) {
-        console.log(`[Crunchyroll] URL personnalisée trouvée pour: ${animeTitle}`);
+        console.log(`[ADN] URL personnalisée trouvée pour: ${animeTitle}`);
         addButtons({
           siteUrl: cachedResult.anilistUrl || cachedResult,
           malUrl: cachedResult.malUrl || null,
@@ -216,12 +204,12 @@ function initializeAnimeDetection(animeTitleRaw) {
         }
       );
     } catch (error) {
-      console.error("[Crunchyroll] Erreur:", error);
+      console.error("[ADN] Erreur:", error);
     }
   })();
 }
 
-// Crunchyroll est une SPA React — on surveille les changements de navigation
+// ADN est une SPA React — surveiller les changements de navigation
 let lastUrl = window.location.href;
 
 function onNavigationChange() {
@@ -229,14 +217,10 @@ function onNavigationChange() {
   if (currentUrl === lastUrl) return;
   lastUrl = currentUrl;
 
-  // Nettoyer les anciens boutons
   utils?.resetButton();
-
-  // Attendre que React re-render puis retry
   waitForTitleAndInit();
 }
 
-// Observer les changements d'URL (pushState / popstate)
 const originalPushState = history.pushState;
 history.pushState = function (...args) {
   originalPushState.apply(this, args);
@@ -251,7 +235,6 @@ history.replaceState = function (...args) {
 
 window.addEventListener("popstate", onNavigationChange);
 
-// Lancement
 main().catch((error) => {
-  console.error("[Crunchyroll] Erreur dans le script principal:", error);
+  console.error("[ADN] Erreur dans le script principal:", error);
 });

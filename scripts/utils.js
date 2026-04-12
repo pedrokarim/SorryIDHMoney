@@ -408,15 +408,21 @@ function createInfoPopover(anchorElement, animeData) {
   const accent = animeData.coverImage?.color || "#805ad5";
 
   // ─── Bannière + cover ───
+  // Si pas de bannière, on réutilise la cover en mode crop
+  const bannerSrc = animeData.bannerImage
+    || animeData.coverImage?.extraLarge
+    || animeData.coverImage?.large
+    || null;
+
   const bannerWrap = document.createElement("div");
   Object.assign(bannerWrap.style, {
     position: "relative",
     width: "100%",
     height: "120px",
     backgroundColor: "#1a1f2e",
-    backgroundImage: animeData.bannerImage ? `url("${animeData.bannerImage}")` : "none",
+    backgroundImage: bannerSrc ? `url("${bannerSrc}")` : "none",
     backgroundSize: "cover",
-    backgroundPosition: "center",
+    backgroundPosition: animeData.bannerImage ? "center" : "center 20%",
     flexShrink: "0",
   });
 

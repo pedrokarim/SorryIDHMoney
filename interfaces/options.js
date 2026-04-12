@@ -98,6 +98,11 @@ document.addEventListener('DOMContentLoaded', function () {
         censure: false,
         enableMal: true,
         enableAnilist: true,
+        enableVoiranime: true,
+        enableCrunchyroll: true,
+        enableAdkami: true,
+        enableAdn: true,
+        enableGumgum: true,
         enableTwitchRewards: true,
         enableToasts: true
     }, function (items) {
@@ -106,6 +111,12 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('censure').checked = items.censure;
         document.getElementById('enable-mal').checked = items.enableMal;
         document.getElementById('enable-anilist').checked = items.enableAnilist;
+        document.getElementById('enable-voiranime').checked = items.enableVoiranime;
+
+        document.getElementById('enable-crunchyroll').checked = items.enableCrunchyroll;
+        document.getElementById('enable-adkami').checked = items.enableAdkami;
+        document.getElementById('enable-adn').checked = items.enableAdn;
+        document.getElementById('enable-gumgum').checked = items.enableGumgum;
         document.getElementById('enable-twitch-rewards').checked = items.enableTwitchRewards;
         document.getElementById('enable-toasts').checked = items.enableToasts;
 
@@ -154,6 +165,14 @@ document.getElementById('enable-anilist').addEventListener('change', function (e
         });
     });
 });
+
+// Plateformes de streaming — sauvegarde uniquement (pris en compte au prochain chargement de page)
+for (const platform of ['voiranime', 'crunchyroll', 'adkami', 'adn', 'gumgum']) {
+    const key = `enable${platform.charAt(0).toUpperCase() + platform.slice(1)}`;
+    document.getElementById(`enable-${platform}`).addEventListener('change', function (e) {
+        chrome.storage.sync.set({ [key]: e.target.checked });
+    });
+}
 
 document.getElementById('enable-twitch-rewards').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableTwitchRewards: e.target.checked });
