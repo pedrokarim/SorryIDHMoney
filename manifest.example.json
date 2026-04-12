@@ -47,6 +47,12 @@
       "type": "module"
     },
     {
+      "matches": ["https://www.crunchyroll.com/*"],
+      "js": ["scripts/crunchyroll-content.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
       "matches": [
         "https://myanimelist.net/*",
         "https://anilist.co/*",

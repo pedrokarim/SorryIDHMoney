@@ -77,9 +77,24 @@ async function main() {
   }
 }
 
+// Extrait l'ID AniList depuis une URL anilist.co/anime/<id>
+function extractAnilistIdFromUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "anilist.co") return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    if (parts.length >= 2 && parts[0] === "anime" && /^\d+$/.test(parts[1])) {
+      return parts[1];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // Fonction qui gère la détection des animes et l'ajout des boutons
 async function initializeAnimeDetection() {
-  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, animationCSS, injectCSSAnimation } = utils;
+  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, animationCSS, injectCSSAnimation } = utils;
   injectCSSAnimation(animationCSS());
 
   const episodeTitleRaw = extractAnimeTitle();
@@ -106,6 +121,21 @@ async function initializeAnimeDetection() {
         },
         openInNewTab: true,
       });
+    }
+
+    // Bouton info : si on a déjà la donnée enrichie (description ou genres), on l'utilise
+    // sinon on tente un fetch par ID en arrière-plan
+    const hasFullData = !!(data?.description || data?.genres?.length || data?.coverImage);
+    if (hasFullData) {
+      addInfoButton(data);
+    } else {
+      const anilistUrl = data?.siteUrl || data?.anilistUrl;
+      const id = anilistUrl ? extractAnilistIdFromUrl(anilistUrl) : null;
+      if (id) {
+        chrome.runtime.sendMessage({ action: "getAnilistMediaById", id }, (full) => {
+          if (full) addInfoButton(full);
+        });
+      }
     }
   }
 
