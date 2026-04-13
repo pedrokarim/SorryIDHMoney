@@ -1294,6 +1294,12 @@ export const animationCSS = () =>
 `;
 
 export function resetButton() {
+  // Safety net : nettoyer aussi par sélecteur CSS au cas où les références module
+  // seraient perdues (ex: script injecté 2 fois, Promise orpheline qui a créé
+  // un bouton après qu'on ait remis les refs à null)
+  document.querySelectorAll('.custom-button').forEach(el => el.remove());
+  document.querySelectorAll('.custom-button-info').forEach(el => el.remove());
+
   if (linkElement) {
     linkElement.remove();
     linkElement = null;

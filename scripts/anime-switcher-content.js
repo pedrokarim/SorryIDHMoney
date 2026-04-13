@@ -14,6 +14,10 @@ let enableAnilist = true;
 let buttonMal = null;
 let buttonAnilist = null;
 
+// Token incrémenté à chaque navigation — utilisé pour ignorer les réponses
+// d'anciennes requêtes qui résolvent après qu'on a changé de page
+let navToken = 0;
+
 chrome.storage.sync.get({
   enableMal: true,
   enableAnilist: true
@@ -149,6 +153,17 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   }
 
   function animeSwitcher(url) {
+    // Toujours nettoyer en premier, quelque soit la façon dont on est arrivé ici
+    resetButton();
+    buttonMal?.remove();
+    buttonAnilist?.remove();
+    buttonMal = null;
+    buttonAnilist = null;
+
+    // Nouveau token de navigation — les anciens callbacks async seront ignorés
+    const thisNav = ++navToken;
+    const isStale = () => thisNav !== navToken;
+
     const currentUrl = new URL(url || window.location.href);
     const currentHostname = currentUrl.hostname;
     const { type, id } = extractAnimeIdFromUrl(currentUrl);
@@ -157,7 +172,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       case "myanimelist.net":
         if (["anime", "manga"].includes(type) && id && enableAnilist) {
           getUrlAnilist(id, type.toUpperCase()).then((url) => {
-            if (!url) return;
+            if (isStale() || !url) return;
             buttonAnilist = addCustomButton("anilist", url);
           });
         }
@@ -166,7 +181,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
       case "anilist.co":
         if (["anime", "manga"].includes(type) && id && enableMal) {
           getUrlMal(id, type.toUpperCase()).then((url) => {
-            if (!url) return;
+            if (isStale() || !url) return;
             buttonMal = addCustomButton("myanimelist", url);
           });
         }
@@ -180,14 +195,10 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
           chrome.runtime.sendMessage(
             { action: "getAnilistMedia", search: mediaInfo.title },
             function (response) {
-              if (!response) return;
+              if (isStale() || !response) return;
 
               if (response?.siteUrl) {
-                buttonAnilist = addCustomButton("anilist", response.siteUrl, {
-                  // styles: {
-                  //   left: `${20 * 2 + 50}px`,
-                  // },
-                });
+                buttonAnilist = addCustomButton("anilist", response.siteUrl);
               }
               if (response?.siteMalUrl && enableMal) {
                 buttonMal = addCustomButton("myanimelist", response.siteMalUrl, {
@@ -206,20 +217,45 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     }
   }
 
-  // only for anilist
+  // Navigation SPA (anilist.co est une SPA Vue/Nuxt)
   if (window.location.hostname === "anilist.co") {
-    navigation.addEventListener("navigate", (e) => {
-      const targetUrl = new URL(e.destination.url);
-      const currentUrl = new URL(window.location.href);
+    let lastHandledUrl = window.location.href;
 
-      if (currentUrl.hostname != targetUrl.hostname) return;
+    const handleNavigation = (targetUrl) => {
+      // Éviter les appels multiples pour la même URL (pushState + navigate API
+      // peuvent fire les deux pour la même navigation)
+      if (targetUrl === lastHandledUrl) return;
+      lastHandledUrl = targetUrl;
 
-      resetButton();
-      buttonMal?.remove();
-      buttonMal = null;
-      buttonAnilist?.remove();
-      buttonAnilist = null;
-      animeSwitcher(e.destination.url);
+      // animeSwitcher s'occupe lui-même de nettoyer les anciens boutons
+      animeSwitcher(targetUrl);
+    };
+
+    // 1. Navigation API (moderne)
+    if (typeof navigation !== "undefined" && navigation.addEventListener) {
+      navigation.addEventListener("navigate", (e) => {
+        try {
+          const targetUrl = new URL(e.destination.url);
+          if (targetUrl.hostname !== window.location.hostname) return;
+          // Attendre un tick que l'URL soit effectivement mise à jour
+          setTimeout(() => handleNavigation(targetUrl.href), 0);
+        } catch { /* ignore */ }
+      });
+    }
+
+    // 2. Patch pushState / replaceState + popstate (fallback fiable)
+    const wrapHistoryMethod = (method) => {
+      const original = history[method];
+      history[method] = function (...args) {
+        const result = original.apply(this, args);
+        setTimeout(() => handleNavigation(window.location.href), 0);
+        return result;
+      };
+    };
+    wrapHistoryMethod("pushState");
+    wrapHistoryMethod("replaceState");
+    window.addEventListener("popstate", () => {
+      setTimeout(() => handleNavigation(window.location.href), 0);
     });
   }
 
