@@ -135,6 +135,22 @@ select:focus {
   box-shadow: 0 0 0 2px rgba(128,90,213,0.12);
 }
 
+input[type="number"] {
+  width: 80px;
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  text-align: right;
+}
+
+input[type="number"]:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(128,90,213,0.12);
+}
+
 /* Theme preview */
 .theme-preview {
   margin: 4px 0 8px;

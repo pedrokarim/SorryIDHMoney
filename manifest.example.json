@@ -33,6 +33,12 @@
       ]
     },
     {
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "js": ["scripts/youtube-shorts-autoscroll.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["scripts/global-content.js"]
     },

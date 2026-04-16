@@ -104,7 +104,10 @@ document.addEventListener('DOMContentLoaded', function () {
         enableAdn: true,
         enableGumgum: true,
         enableTwitchRewards: true,
-        enableToasts: true
+        enableToasts: true,
+        enableYoutubeShortsAutoscroll: false,
+        youtubeShortsReplayCount: 0,
+        youtubeShortsScrollDelay: 0
     }, function (items) {
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
@@ -119,6 +122,10 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('enable-gumgum').checked = items.enableGumgum;
         document.getElementById('enable-twitch-rewards').checked = items.enableTwitchRewards;
         document.getElementById('enable-toasts').checked = items.enableToasts;
+
+        document.getElementById('enable-yt-shorts-autoscroll').checked = items.enableYoutubeShortsAutoscroll;
+        document.getElementById('yt-shorts-replay-count').value = items.youtubeShortsReplayCount;
+        document.getElementById('yt-shorts-scroll-delay').value = items.youtubeShortsScrollDelay;
 
         updateThemePreview(items.theme);
     });
@@ -186,4 +193,33 @@ document.getElementById('enable-twitch-rewards').addEventListener('change', func
 
 document.getElementById('enable-toasts').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableToasts: e.target.checked });
+});
+
+// YouTube Shorts — auto-scroll
+function sendShortsUpdate(payload) {
+    chrome.tabs.query({ url: ['https://www.youtube.com/shorts/*', 'https://m.youtube.com/shorts/*'] }, function (tabs) {
+        if (!tabs) return;
+        for (const tab of tabs) {
+            chrome.tabs.sendMessage(tab.id, { action: 'updateYoutubeShortsAutoscroll', ...payload }, () => void chrome.runtime.lastError);
+        }
+    });
+}
+
+document.getElementById('enable-yt-shorts-autoscroll').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableYoutubeShortsAutoscroll: e.target.checked });
+    sendShortsUpdate({ enabled: e.target.checked });
+});
+
+document.getElementById('yt-shorts-replay-count').addEventListener('change', function (e) {
+    const value = Math.max(0, Math.min(50, parseInt(e.target.value, 10) || 0));
+    e.target.value = value;
+    chrome.storage.sync.set({ youtubeShortsReplayCount: value });
+    sendShortsUpdate({ config: { youtubeShortsReplayCount: value } });
+});
+
+document.getElementById('yt-shorts-scroll-delay').addEventListener('change', function (e) {
+    const value = Math.max(0, Math.min(10000, parseInt(e.target.value, 10) || 0));
+    e.target.value = value;
+    chrome.storage.sync.set({ youtubeShortsScrollDelay: value });
+    sendShortsUpdate({ config: { youtubeShortsScrollDelay: value } });
 });
