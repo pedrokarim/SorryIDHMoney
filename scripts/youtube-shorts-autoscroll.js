@@ -196,21 +196,38 @@ function ensureButton() {
     if (!isShortsPage()) return;
     const bar = document.querySelector('reel-action-bar-view-model');
     if (!bar) return;
-    // Si déjà présent dans cette barre, juste mettre à jour l'état
     const existing = bar.querySelector(`[${BUTTON_ATTR}]`);
     if (existing) { updateButton(); return; }
-    // Retirer d'éventuels boutons orphelins dans d'autres barres
     document.querySelectorAll(`[${BUTTON_ATTR}]`).forEach(el => el.remove());
 
-    const wrapper = document.createElement('div');
-    wrapper.setAttribute(BUTTON_ATTR, '1');
-    wrapper.className = 'ytwReelActionBarViewModelHostDesktopActionButton';
-    wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;';
+    // Reproduit la structure native d'un bouton d'action Shorts.
+    const viewModel = document.createElement('button-view-model');
+    viewModel.setAttribute(BUTTON_ATTR, '1');
+    viewModel.className = 'ytSpecButtonViewModelHost ytwReelActionBarViewModelHostDesktopActionButton';
+
+    const labelHost = document.createElement('label');
+    labelHost.className = 'ytSpecButtonShapeWithLabelHost';
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'yt-spec-button-shape-next yt-spec-button-shape-next--tonal yt-spec-button-shape-next--mono yt-spec-button-shape-next--size-l yt-spec-button-shape-next--icon-button';
-    btn.appendChild(buildSvgArrow());
+    btn.className = 'ytSpecButtonShapeNextHost ytSpecButtonShapeNextTonal ytSpecButtonShapeNextMono ytSpecButtonShapeNextSizeL ytSpecButtonShapeNextIconButton ytSpecButtonShapeNextEnableBackdropFilterExperiment';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.setAttribute('aria-hidden', 'true');
+    iconWrap.className = 'ytSpecButtonShapeNextIcon';
+    const iconSize = document.createElement('span');
+    iconSize.className = 'ytIconWrapperHost';
+    iconSize.style.cssText = 'width:24px;height:24px';
+    const iconShape = document.createElement('span');
+    iconShape.className = 'yt-icon-shape ytSpecIconShapeHost';
+    const svgWrap = document.createElement('div');
+    svgWrap.style.cssText = 'width:100%;height:100%;display:block;fill:currentcolor';
+    svgWrap.appendChild(buildSvgArrow());
+    iconShape.appendChild(svgWrap);
+    iconSize.appendChild(iconShape);
+    iconWrap.appendChild(iconSize);
+    btn.appendChild(iconWrap);
+
     btn.addEventListener('click', () => {
         const next = !config.enableYoutubeShortsAutoscroll;
         config.enableYoutubeShortsAutoscroll = next;
@@ -221,25 +238,30 @@ function ensureButton() {
         updateButton();
     });
 
-    const label = document.createElement('div');
-    label.className = 'sidhm-shorts-label';
-    label.textContent = 'Auto';
-    label.style.cssText = 'font-size:12px;color:#fff;font-family:Roboto,Arial,sans-serif;';
+    const labelText = document.createElement('div');
+    labelText.className = 'ytSpecButtonShapeWithLabelLabel';
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'ytAttributedStringHost ytAttributedStringWhiteSpacePreWrap ytAttributedStringTextAlignmentCenter ytAttributedStringWordWrapping';
+    labelSpan.setAttribute('role', 'text');
+    labelSpan.textContent = 'Auto';
+    labelText.appendChild(labelSpan);
 
-    wrapper.appendChild(btn);
-    wrapper.appendChild(label);
-    bar.prepend(wrapper);
+    labelHost.appendChild(btn);
+    labelHost.appendChild(labelText);
+    viewModel.appendChild(labelHost);
+    bar.prepend(viewModel);
     updateButton();
 }
 
 function updateButton() {
-    const wrapper = document.querySelector(`[${BUTTON_ATTR}]`);
-    if (!wrapper) return;
-    const btn = wrapper.querySelector('button');
+    const viewModel = document.querySelector(`[${BUTTON_ATTR}]`);
+    if (!viewModel) return;
+    const btn = viewModel.querySelector('button');
     const on = !!config.enableYoutubeShortsAutoscroll;
     btn.style.background = on ? 'rgba(107,70,193,.9)' : '';
     btn.style.color = on ? '#fff' : '';
     btn.title = on ? 'Auto-scroll : ON' : 'Auto-scroll : OFF';
+    btn.setAttribute('aria-label', on ? 'Désactiver auto-scroll' : 'Activer auto-scroll');
 }
 
 function removeButton() {
