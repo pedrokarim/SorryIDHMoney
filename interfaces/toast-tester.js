@@ -30,7 +30,6 @@ async function sendToastToActiveTab(message, options) {
             message: message,
             options: options
         }, response => {
-            // Optionnel : traiter la réponse si nécessaire
             console.log("Toast affiché avec succès:", response);
         });
 
@@ -54,18 +53,6 @@ function showError(message) {
 function createErrorDiv() {
     const errorDiv = document.createElement('div');
     errorDiv.id = 'error-message';
-    errorDiv.style.cssText = `
-        position: fixed;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: var(--error-color);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 4px;
-        transition: opacity 0.3s;
-        opacity: 0;
-    `;
     document.body.appendChild(errorDiv);
     return errorDiv;
 }
@@ -96,11 +83,25 @@ function showPresetToast(type) {
 
 // Ajouter les écouteurs d'événements
 document.addEventListener('DOMContentLoaded', () => {
+    // Bouton toast personnalisé
     document.getElementById('custom-toast-btn').addEventListener('click', showCustomToast);
 
-    document.querySelectorAll('.preset-toasts button').forEach(button => {
+    // Boutons preset
+    document.querySelectorAll('.preset-item').forEach(button => {
         button.addEventListener('click', () => {
             showPresetToast(button.dataset.type);
         });
     });
-}); 
+
+    // Toggle des sections (collapse/expand)
+    document.querySelectorAll('.settings-group-header').forEach(header => {
+        header.addEventListener('click', () => {
+            const group = header.closest('.settings-group');
+            const content = group.querySelector('.settings-group-content');
+            const isCollapsed = group.dataset.collapsed === 'true';
+
+            group.dataset.collapsed = isCollapsed ? 'false' : 'true';
+            content.style.display = isCollapsed ? '' : 'none';
+        });
+    });
+});

@@ -76,24 +76,47 @@ class ToastManager {
         const toast = document.createElement('div');
         toast.className = `extension-toast toast-${type}`;
 
+        // Couleurs par type
+        const bgColors = {
+            success: '#f0fdf4',
+            error: '#fef2f2',
+            warning: '#fffbeb',
+            info: '#eff6ff'
+        };
+        const borderColors = {
+            success: '#bbf7d0',
+            error: '#fecaca',
+            warning: '#fde68a',
+            info: '#bfdbfe'
+        };
+        const textColors = {
+            success: '#166534',
+            error: '#991b1b',
+            warning: '#92400e',
+            info: '#1e40af'
+        };
+
         // Styles du toast
         toast.style.cssText = `
-            padding: 12px 16px;
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            margin-bottom: 8px;
+            padding: 10px 14px;
+            background: ${bgColors[type] || bgColors.info};
+            border: 1px solid ${borderColors[type] || borderColors.info};
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             opacity: 0;
             pointer-events: auto;
-            transform: scale(0.9);
-            transition: all 0.3s ease;
+            transform: translateY(-8px);
+            transition: all 0.25s ease;
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            min-width: 250px;
-            max-width: 400px;
-            height: auto;
+            gap: 6px;
+            min-width: 220px;
+            max-width: 360px;
             margin: 0;
+            color: ${textColors[type] || textColors.info};
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 13px;
+            line-height: 1.4;
         `;
 
         // Contenu principal du toast
@@ -102,14 +125,14 @@ class ToastManager {
         contentDiv.style.cssText = `
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
         `;
 
         // Ajouter l'icône et le message
         const icon = this.getIconForType(type);
         contentDiv.innerHTML = `
-            <span class="toast-icon">${icon}</span>
-            <span class="toast-message">${message}</span>
+            <span class="toast-icon" style="display:flex;flex-shrink:0;">${icon}</span>
+            <span class="toast-message" style="flex:1;min-width:0;">${message}</span>
         `;
         toast.appendChild(contentDiv);
 
@@ -130,13 +153,15 @@ class ToastManager {
                 btnElement.className = `toast-button ${button.type || 'default'}`;
                 btnElement.style.cssText = `
                     padding: 4px 10px;
-                    border: none;
+                    border: 1px solid ${borderColors[type] || borderColors.info};
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 11px;
+                    font-weight: 500;
                     cursor: pointer;
-                    background-color: ${this.getButtonColor(button.type)};
-                    color: white;
-                    transition: opacity 0.2s;
+                    background: transparent;
+                    color: ${textColors[type] || textColors.info};
+                    transition: background 0.15s;
+                    font-family: inherit;
                 `;
                 btnElement.addEventListener('click', () => {
                     if (typeof button.onClick === 'function') {
@@ -151,16 +176,6 @@ class ToastManager {
             toast.appendChild(buttonsContainer);
         }
 
-        // Appliquer les couleurs
-        const colors = {
-            success: '#4CAF50',
-            error: '#F44336',
-            warning: '#FF9800',
-            info: '#2196F3'
-        };
-        toast.style.borderLeft = `4px solid ${colors[type]}`;
-        toast.style.color = colors[type];
-
         // Ajouter le toast au conteneur
         this.container.appendChild(toast);
         this.toasts.add(toast);
@@ -168,7 +183,7 @@ class ToastManager {
         // Animation d'entrée
         requestAnimationFrame(() => {
             toast.style.opacity = '1';
-            toast.style.transform = 'scale(1)';
+            toast.style.transform = 'translateY(0)';
         });
 
         // Suppression automatique après la durée spécifiée
@@ -188,7 +203,7 @@ class ToastManager {
         if (!this.toasts.has(toast)) return;
 
         toast.style.opacity = '0';
-        toast.style.transform = 'scale(0.9)';
+        toast.style.transform = 'translateY(-8px)';
         setTimeout(() => {
             if (this.container.contains(toast)) {
                 this.container.removeChild(toast);
@@ -216,11 +231,18 @@ class ToastManager {
      * Retourne l'icône SVG correspondant au type de toast
      */
     getIconForType(type) {
+        const iconColors = {
+            success: '#166534',
+            error: '#991b1b',
+            warning: '#92400e',
+            info: '#1e40af'
+        };
+        const c = iconColors[type] || iconColors.info;
         const icons = {
-            success: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#4CAF50" opacity="0.2"/><path d="M8 12l3 3 5-7" stroke="#4CAF50" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-            error: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#F44336" opacity="0.2"/><path d="M15 9l-6 6m0-6l6 6" stroke="#F44336" stroke-width="2.5" stroke-linecap="round"/></svg>',
-            warning: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3L2 21h20L12 3z" fill="#FF9800" opacity="0.2"/><path d="M12 9v6" stroke="#FF9800" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="18" r="1.5" fill="#FF9800"/></svg>',
-            info: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#2196F3" opacity="0.2"/><path d="M12 8v8" stroke="#2196F3" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="6" r="1.5" fill="#2196F3"/></svg>'
+            success: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
+            error: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
+            warning: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
+            info: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`
         };
         return icons[type] || icons.info;
     }

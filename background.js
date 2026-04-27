@@ -40,6 +40,70 @@ function sanitizeSearchTerm(search) {
     .trim();
 }
 
+// Champs complets utilisés pour la fiche détaillée
+const ANILIST_FULL_FIELDS = `
+    id
+    idMal
+    siteUrl
+    type
+    title { romaji english native }
+    description(asHtml: false)
+    format
+    status
+    episodes
+    duration
+    season
+    seasonYear
+    startDate { year month day }
+    endDate { year month day }
+    averageScore
+    meanScore
+    popularity
+    favourites
+    genres
+    isAdult
+    coverImage { large extraLarge color }
+    bannerImage
+    nextAiringEpisode { airingAt timeUntilAiring episode }
+    studios(isMain: true) { nodes { name siteUrl } }
+    trailer { id site thumbnail }
+`;
+
+async function getAnilistMediaById(id) {
+  if (!id || isNaN(parseInt(id))) return null;
+
+  const cacheKey = `anilist:id:${id}`;
+  const cached = getApiCache(cacheKey);
+  if (cached !== null) return cached;
+
+  const query = `query ($id: Int) {
+    Media(id: $id, type: ANIME) {
+      ${ANILIST_FULL_FIELDS}
+    }
+  }`;
+
+  const res = await fetch("https://graphql.anilist.co", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ query, variables: { id: parseInt(id) } }),
+  })
+    .then((r) => r.json())
+    .catch(() => null);
+
+  const idMal = res?.data?.Media?.idMal;
+  const result = res?.data?.Media
+    ? {
+        ...res.data.Media,
+        siteMalUrl: idMal
+          ? `https://myanimelist.net/${res.data.Media.type?.toLowerCase()}/${idMal}`
+          : null,
+      }
+    : null;
+
+  setApiCache(cacheKey, result);
+  return result;
+}
+
 async function getAnilistMediaInfo(search) {
   // Applique la sanitization avant la recherche
   const sanitizedSearch = sanitizeSearchTerm(search);
@@ -59,10 +123,7 @@ async function getAnilistMediaInfo(search) {
 
   const query = `query ($search: String) {
             Media(search: $search, type: ANIME) {
-                id
-                idMal
-                siteUrl
-                type
+                ${ANILIST_FULL_FIELDS}
             }
         }`;
   const variables = {
@@ -357,6 +418,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       // Le retour de true est important car il indique au runtime
       // que nous voulons qu'il reste actif tout au long de la transition
+      return true;
+    case "getAnilistMediaById":
+      if (message.id) {
+        getAnilistMediaById(message.id).then((res) => sendResponse(res));
+      } else {
+        sendResponse(null);
+      }
       return true;
     case "cacheData":
       if (message.cacheKey && message.data && message.expirationInSeconds) {

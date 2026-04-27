@@ -33,6 +33,12 @@
       ]
     },
     {
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
+      "js": ["scripts/youtube-shorts-autoscroll.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["scripts/global-content.js"]
     },
@@ -44,6 +50,28 @@
     {
       "matches": ["https://v5.voiranime.com/*", "https://v6.voiranime.com/*"],
       "js": ["scripts/voiranime-content.js"],
+      "type": "module"
+    },
+    {
+      "matches": ["https://www.crunchyroll.com/*"],
+      "js": ["scripts/crunchyroll-content.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.adkami.com/*"],
+      "js": ["scripts/adkami-content.js"],
+      "type": "module"
+    },
+    {
+      "matches": ["https://animationdigitalnetwork.com/*"],
+      "js": ["scripts/adn-content.js"],
+      "type": "module",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gum-gum-streaming.com/*"],
+      "js": ["scripts/gumgum-content.js"],
       "type": "module"
     },
     {

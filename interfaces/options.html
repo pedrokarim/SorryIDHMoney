@@ -79,6 +79,75 @@
     </div>
 
     <div class="settings-group" data-collapsed="false">
+      <div class="settings-group-header" data-toggle="platforms">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Plateformes de streaming</span>
+      </div>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label"><img src="../icons/platforms/voiranime.png" class="platform-icon" alt="">Voiranime</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-voiranime" name="enable-voiranime">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label"><img src="../icons/platforms/crunchyroll.png" class="platform-icon" alt="">Crunchyroll</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-crunchyroll" name="enable-crunchyroll">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label"><img src="../icons/platforms/adkami.png" class="platform-icon" alt="">ADKami</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-adkami" name="enable-adkami">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label"><img src="../icons/platforms/adn.webp" class="platform-icon" alt="">ADN</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-adn" name="enable-adn">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label"><img src="../icons/platforms/gumgum.png" class="platform-icon" alt="">Gum Gum Streaming</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-gumgum" name="enable-gumgum">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group" data-collapsed="false">
+      <div class="settings-group-header" data-toggle="youtube">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <img src="../icons/platforms/youtube.png" class="platform-icon" alt="">
+        <span>YouTube Shorts</span>
+      </div>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">Auto-scroll des Shorts</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-yt-shorts-autoscroll" name="enable-yt-shorts-autoscroll">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Nombre de replays avant scroll</span>
+          <input type="number" id="yt-shorts-replay-count" name="yt-shorts-replay-count" min="0" max="50" step="1" value="0">
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Délai avant scroll (ms)</span>
+          <input type="number" id="yt-shorts-scroll-delay" name="yt-shorts-scroll-delay" min="0" max="10000" step="100" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-group" data-collapsed="false">
       <div class="settings-group-header" data-toggle="features">
         <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         <span>Fonctionnalités</span>

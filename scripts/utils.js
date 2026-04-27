@@ -1,5 +1,8 @@
 let linkElement = null;
 let secondLinkElement = null;
+let infoButtonElement = null;
+let infoPopoverElement = null;
+let infoPopoverOpen = false;
 let style = null;
 let popoverElement = null;
 let popoverOpen = false;
@@ -209,10 +212,545 @@ export function addExitEditButton() {
   return btn;
 }
 
+// ─── Bouton Info (3ème bouton) ──────────────────────────────────────────
+
+/**
+ * Ajoute un bouton "info" à droite des boutons MAL/Anilist.
+ * Au clic, affiche une fiche détaillée tirée d'AniList (source de vérité).
+ *
+ * @param {object} animeData - Données AniList (idéalement enrichies). Champs supportés :
+ *   id, idMal, siteUrl, siteMalUrl, anilistUrl, malUrl, title{romaji,english,native},
+ *   description, format, status, episodes, duration, season, seasonYear,
+ *   averageScore, meanScore, genres, coverImage{large,extraLarge,color},
+ *   bannerImage, nextAiringEpisode{airingAt,timeUntilAiring,episode},
+ *   studios{nodes:[{name,siteUrl}]}, startDate, endDate
+ */
+export function addInfoButton(animeData) {
+  if (!animeData) return null;
+
+  // Nettoyer un éventuel ancien bouton
+  if (infoButtonElement) {
+    infoButtonElement.remove();
+    infoButtonElement = null;
+  }
+
+  const element = document.createElement("div");
+  element.classList.add("custom-button-info");
+
+  Object.assign(element.style, {
+    width: "50px",
+    height: "50px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: "pointer",
+    position: "fixed",
+    bottom: "20px",
+    left: `${20 * 3 + 50 * 2}px`,
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+    overflow: "hidden",
+    transition: "background-color 0.2s, transform 0.2s",
+    zIndex: "99999",
+    background: "linear-gradient(135deg, #805ad5 0%, #553c9a 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    animation: "none",
+  });
+
+  element.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  `;
+
+  element.addEventListener("mouseenter", () => {
+    element.style.transform = "scale(1.05)";
+  });
+  element.addEventListener("mouseleave", () => {
+    element.style.transform = "scale(1)";
+  });
+
+  element.addEventListener("click", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    toggleInfoPopover(element, animeData);
+  });
+
+  document.body.appendChild(element);
+  infoButtonElement = element;
+  return element;
+}
+
+/**
+ * Toggle du popover d'information ancré au-dessus du bouton info
+ */
+function toggleInfoPopover(anchorElement, animeData) {
+  if (infoPopoverOpen) {
+    destroyInfoPopover();
+    return;
+  }
+  createInfoPopover(anchorElement, animeData);
+}
+
+/**
+ * Détruit le popover d'information
+ */
+function destroyInfoPopover() {
+  if (infoPopoverElement) {
+    infoPopoverElement.remove();
+    infoPopoverElement = null;
+  }
+  infoPopoverOpen = false;
+  document.removeEventListener("click", handleInfoOutsideClick);
+  document.removeEventListener("keydown", handleInfoEscapeKey);
+}
+
+function handleInfoOutsideClick(e) {
+  if (
+    infoPopoverElement &&
+    !infoPopoverElement.contains(e.target) &&
+    !e.target.closest(".custom-button-info")
+  ) {
+    destroyInfoPopover();
+  }
+}
+
+function handleInfoEscapeKey(e) {
+  if (e.key === "Escape") destroyInfoPopover();
+}
+
+/**
+ * Formatte un nombre de secondes en "Xj Yh Zm" ou similaire (compact)
+ */
+function formatTimeUntil(seconds) {
+  if (!seconds || seconds <= 0) return null;
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (days > 0) parts.push(`${days}j`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (parts.length < 2 && minutes > 0) parts.push(`${minutes}m`);
+  return parts.join(" ") || "< 1m";
+}
+
+/**
+ * Convertit un statut AniList en libellé FR
+ */
+function formatStatus(status) {
+  switch (status) {
+    case "RELEASING": return "En cours";
+    case "FINISHED": return "Terminé";
+    case "NOT_YET_RELEASED": return "À venir";
+    case "CANCELLED": return "Annulé";
+    case "HIATUS": return "En pause";
+    default: return status || "?";
+  }
+}
+
+function statusColor(status) {
+  switch (status) {
+    case "RELEASING": return "#48bb78";
+    case "FINISHED": return "#4299e1";
+    case "NOT_YET_RELEASED": return "#ed8936";
+    case "CANCELLED": return "#e53e3e";
+    case "HIATUS": return "#ecc94b";
+    default: return "#718096";
+  }
+}
+
+/**
+ * Crée et affiche la fiche AniList ancrée au-dessus du bouton info
+ */
+function createInfoPopover(anchorElement, animeData) {
+  destroyInfoPopover();
+  infoPopoverOpen = true;
+
+  // ─── Container ───
+  infoPopoverElement = document.createElement("div");
+  infoPopoverElement.classList.add("info-popover");
+  Object.assign(infoPopoverElement.style, {
+    position: "fixed",
+    bottom: "80px",
+    left: "12px",
+    width: "420px",
+    maxHeight: "560px",
+    backgroundColor: "#0f1419",
+    borderRadius: "14px",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)",
+    display: "flex",
+    flexDirection: "column",
+    zIndex: "999999",
+    color: "#fff",
+    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    overflow: "hidden",
+    animation: "infoPopoverIn 0.18s ease-out",
+  });
+
+  // Flèche en bas
+  const arrow = document.createElement("div");
+  const anchorRect = anchorElement.getBoundingClientRect();
+  Object.assign(arrow.style, {
+    position: "absolute",
+    bottom: "-7px",
+    left: `${anchorRect.left - 12 + 22}px`,
+    width: "14px",
+    height: "14px",
+    backgroundColor: "#0f1419",
+    transform: "rotate(45deg)",
+    boxShadow: "3px 3px 6px rgba(0,0,0,0.25)",
+    zIndex: "-1",
+  });
+  infoPopoverElement.appendChild(arrow);
+
+  const accent = animeData.coverImage?.color || "#805ad5";
+
+  // ─── Bannière + cover ───
+  // Si pas de bannière, on réutilise la cover en mode crop
+  const bannerSrc = animeData.bannerImage
+    || animeData.coverImage?.extraLarge
+    || animeData.coverImage?.large
+    || null;
+
+  const bannerWrap = document.createElement("div");
+  Object.assign(bannerWrap.style, {
+    position: "relative",
+    width: "100%",
+    height: "120px",
+    backgroundColor: "#1a1f2e",
+    backgroundImage: bannerSrc ? `url("${bannerSrc}")` : "none",
+    backgroundSize: "cover",
+    backgroundPosition: animeData.bannerImage ? "center" : "center 20%",
+    flexShrink: "0",
+  });
+
+  // Dégradé sur la bannière
+  const bannerOverlay = document.createElement("div");
+  Object.assign(bannerOverlay.style, {
+    position: "absolute",
+    inset: "0",
+    background: `linear-gradient(180deg, rgba(15,20,25,0.35) 0%, rgba(15,20,25,0.7) 60%, #0f1419 100%)`,
+  });
+  bannerWrap.appendChild(bannerOverlay);
+
+  // Bouton close en haut à droite
+  const closeBtn = document.createElement("button");
+  closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+  Object.assign(closeBtn.style, {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    width: "26px",
+    height: "26px",
+    borderRadius: "50%",
+    border: "none",
+    backgroundColor: "rgba(0,0,0,0.55)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "0",
+    transition: "background-color 0.15s",
+    zIndex: "2",
+  });
+  closeBtn.addEventListener("mouseenter", () => closeBtn.style.backgroundColor = "rgba(0,0,0,0.8)");
+  closeBtn.addEventListener("mouseleave", () => closeBtn.style.backgroundColor = "rgba(0,0,0,0.55)");
+  closeBtn.addEventListener("click", destroyInfoPopover);
+  bannerWrap.appendChild(closeBtn);
+
+  infoPopoverElement.appendChild(bannerWrap);
+
+  // ─── Section header (cover + titre) ───
+  const headerWrap = document.createElement("div");
+  Object.assign(headerWrap.style, {
+    display: "flex",
+    gap: "12px",
+    padding: "0 16px",
+    marginTop: "-50px",
+    position: "relative",
+    zIndex: "1",
+    flexShrink: "0",
+  });
+
+  const cover = document.createElement("img");
+  cover.src = animeData.coverImage?.extraLarge || animeData.coverImage?.large || "";
+  cover.alt = animeData.title?.romaji || "";
+  Object.assign(cover.style, {
+    width: "78px",
+    height: "112px",
+    borderRadius: "8px",
+    objectFit: "cover",
+    flexShrink: "0",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.5)",
+    border: `2px solid ${accent}`,
+  });
+  headerWrap.appendChild(cover);
+
+  const titleBlock = document.createElement("div");
+  Object.assign(titleBlock.style, {
+    flex: "1",
+    minWidth: "0",
+    paddingTop: "52px",
+  });
+
+  const titleEl = document.createElement("div");
+  titleEl.textContent = animeData.title?.romaji || animeData.title?.english || "Sans titre";
+  Object.assign(titleEl.style, {
+    fontSize: "16px",
+    fontWeight: "700",
+    color: "#fff",
+    lineHeight: "1.25",
+    textShadow: "0 2px 6px rgba(0,0,0,0.7)",
+    overflow: "hidden",
+    display: "-webkit-box",
+    WebkitLineClamp: "2",
+    WebkitBoxOrient: "vertical",
+  });
+  titleBlock.appendChild(titleEl);
+
+  if (animeData.title?.english && animeData.title.english !== animeData.title.romaji) {
+    const subTitle = document.createElement("div");
+    subTitle.textContent = animeData.title.english;
+    Object.assign(subTitle.style, {
+      fontSize: "11px",
+      color: "#a0aec0",
+      marginTop: "3px",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    });
+    titleBlock.appendChild(subTitle);
+  }
+
+  headerWrap.appendChild(titleBlock);
+  infoPopoverElement.appendChild(headerWrap);
+
+  // ─── Body scrollable ───
+  const body = document.createElement("div");
+  body.classList.add("info-popover-body");
+  Object.assign(body.style, {
+    flex: "1",
+    overflowY: "auto",
+    padding: "12px 16px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  });
+
+  // ─── Bandeau meta (format / épisodes / année / score) ───
+  const metaRow = document.createElement("div");
+  Object.assign(metaRow.style, {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "6px",
+    marginTop: "4px",
+  });
+
+  const metaChip = (label, value, bg = "rgba(255,255,255,0.06)", color = "#e2e8f0") => {
+    const chip = document.createElement("div");
+    chip.innerHTML = `<span style="opacity:0.6;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;">${label}</span><span style="font-weight:600;">${value}</span>`;
+    Object.assign(chip.style, {
+      padding: "5px 9px",
+      borderRadius: "6px",
+      backgroundColor: bg,
+      color,
+      fontSize: "12px",
+      display: "flex",
+      alignItems: "center",
+    });
+    return chip;
+  };
+
+  if (animeData.format) metaRow.appendChild(metaChip("Type", animeData.format));
+  if (animeData.episodes) metaRow.appendChild(metaChip("Eps", animeData.episodes));
+  if (animeData.duration) metaRow.appendChild(metaChip("Durée", `${animeData.duration} min`));
+  if (animeData.seasonYear) metaRow.appendChild(metaChip("Année", animeData.seasonYear));
+
+  const score = animeData.averageScore || animeData.meanScore;
+  if (score) {
+    const scoreChip = metaChip("Score", `${score}%`, "rgba(245,158,11,0.15)", "#fbbf24");
+    metaRow.appendChild(scoreChip);
+  }
+
+  // Statut
+  if (animeData.status) {
+    const sColor = statusColor(animeData.status);
+    const statusChip = document.createElement("div");
+    statusChip.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:${sColor};margin-right:6px;display:inline-block;${animeData.status === "RELEASING" ? "box-shadow:0 0 6px " + sColor + ";animation:infoPulse 1.6s ease-in-out infinite;" : ""}"></span>${formatStatus(animeData.status)}`;
+    Object.assign(statusChip.style, {
+      padding: "5px 9px",
+      borderRadius: "6px",
+      backgroundColor: `${sColor}22`,
+      color: sColor,
+      fontSize: "12px",
+      fontWeight: "600",
+      display: "flex",
+      alignItems: "center",
+    });
+    metaRow.appendChild(statusChip);
+  }
+
+  body.appendChild(metaRow);
+
+  // ─── Prochaine sortie ───
+  if (animeData.nextAiringEpisode) {
+    const next = animeData.nextAiringEpisode;
+    const timeLeft = formatTimeUntil(next.timeUntilAiring);
+    if (timeLeft) {
+      const nextBox = document.createElement("div");
+      Object.assign(nextBox.style, {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "10px 12px",
+        borderRadius: "8px",
+        background: `linear-gradient(135deg, ${accent}22 0%, ${accent}10 100%)`,
+        border: `1px solid ${accent}44`,
+      });
+      nextBox.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:#a0aec0;">Épisode ${next.episode}</div>
+          <div style="font-size:13px;font-weight:600;color:#fff;margin-top:2px;">dans ${timeLeft}</div>
+        </div>
+      `;
+      body.appendChild(nextBox);
+    }
+  }
+
+  // ─── Genres ───
+  if (animeData.genres && animeData.genres.length) {
+    const genresWrap = document.createElement("div");
+    Object.assign(genresWrap.style, { display: "flex", flexWrap: "wrap", gap: "5px" });
+    for (const g of animeData.genres) {
+      const tag = document.createElement("span");
+      tag.textContent = g;
+      Object.assign(tag.style, {
+        padding: "3px 8px",
+        borderRadius: "999px",
+        backgroundColor: `${accent}22`,
+        color: accent,
+        fontSize: "11px",
+        fontWeight: "600",
+        border: `1px solid ${accent}44`,
+      });
+      genresWrap.appendChild(tag);
+    }
+    body.appendChild(genresWrap);
+  }
+
+  // ─── Studio(s) ───
+  const studios = animeData.studios?.nodes || [];
+  if (studios.length) {
+    const studioEl = document.createElement("div");
+    studioEl.innerHTML = `<span style="opacity:0.55;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;margin-right:6px;">Studio</span><span style="font-size:12px;color:#e2e8f0;font-weight:500;">${studios.map((s) => s.name).join(", ")}</span>`;
+    body.appendChild(studioEl);
+  }
+
+  // ─── Description ───
+  if (animeData.description) {
+    const desc = document.createElement("div");
+    const cleanDesc = animeData.description.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim();
+    Object.assign(desc.style, {
+      fontSize: "12px",
+      lineHeight: "1.55",
+      color: "#cbd5e0",
+      whiteSpace: "pre-wrap",
+      overflow: "hidden",
+      display: "-webkit-box",
+      WebkitLineClamp: "5",
+      WebkitBoxOrient: "vertical",
+      cursor: "pointer",
+      transition: "all 0.2s",
+    });
+    desc.textContent = cleanDesc;
+
+    let expanded = false;
+    desc.addEventListener("click", () => {
+      expanded = !expanded;
+      desc.style.webkitLineClamp = expanded ? "unset" : "5";
+      desc.style.display = expanded ? "block" : "-webkit-box";
+    });
+    body.appendChild(desc);
+  }
+
+  // ─── Boutons d'action ───
+  const actions = document.createElement("div");
+  Object.assign(actions.style, {
+    display: "flex",
+    gap: "8px",
+    marginTop: "4px",
+  });
+
+  const makeAction = (label, href, bg, hoverBg) => {
+    const a = document.createElement("a");
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = label;
+    Object.assign(a.style, {
+      flex: "1",
+      textAlign: "center",
+      padding: "9px 10px",
+      borderRadius: "7px",
+      backgroundColor: bg,
+      color: "#fff",
+      fontSize: "12px",
+      fontWeight: "600",
+      textDecoration: "none",
+      transition: "background-color 0.15s",
+    });
+    a.addEventListener("mouseenter", () => a.style.backgroundColor = hoverBg);
+    a.addEventListener("mouseleave", () => a.style.backgroundColor = bg);
+    return a;
+  };
+
+  const aniHref = animeData.siteUrl || animeData.anilistUrl;
+  const malHref = animeData.siteMalUrl || animeData.malUrl;
+  if (aniHref) actions.appendChild(makeAction("Voir sur AniList", aniHref, "#19212d", "#2c3a4f"));
+  if (malHref) actions.appendChild(makeAction("Voir sur MAL", malHref, "#2e51a2", "#4169cc"));
+  if (actions.children.length) body.appendChild(actions);
+
+  // ─── Scrollbar + animations ───
+  const sStyle = document.createElement("style");
+  sStyle.textContent = `
+    .info-popover-body::-webkit-scrollbar { width: 6px; }
+    .info-popover-body::-webkit-scrollbar-track { background: transparent; }
+    .info-popover-body::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 3px; }
+    .info-popover-body::-webkit-scrollbar-thumb:hover { background: #4a5568; }
+    @keyframes infoPopoverIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes infoPulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  `;
+  infoPopoverElement.appendChild(sStyle);
+
+  infoPopoverElement.appendChild(body);
+  document.body.appendChild(infoPopoverElement);
+
+  setTimeout(() => {
+    document.addEventListener("click", handleInfoOutsideClick);
+  }, 0);
+  document.addEventListener("keydown", handleInfoEscapeKey);
+}
+
 /**
  * Active le mode édition sur les boutons existants (quand anime trouvé mais on veut corriger)
  */
 export function enableEditModeOnButtons(animeName, onAnimeSelected) {
+  // Cacher le bouton info pendant l'édition (il occupe le même slot que le bouton X)
+  if (infoButtonElement) {
+    infoButtonElement.remove();
+    infoButtonElement = null;
+  }
+  destroyInfoPopover();
+
   const buttons = document.querySelectorAll('.custom-button');
   buttons.forEach(btn => {
     // Cloner pour supprimer les anciens listeners
@@ -756,6 +1294,12 @@ export const animationCSS = () =>
 `;
 
 export function resetButton() {
+  // Safety net : nettoyer aussi par sélecteur CSS au cas où les références module
+  // seraient perdues (ex: script injecté 2 fois, Promise orpheline qui a créé
+  // un bouton après qu'on ait remis les refs à null)
+  document.querySelectorAll('.custom-button').forEach(el => el.remove());
+  document.querySelectorAll('.custom-button-info').forEach(el => el.remove());
+
   if (linkElement) {
     linkElement.remove();
     linkElement = null;
@@ -765,6 +1309,12 @@ export function resetButton() {
     secondLinkElement.remove();
     secondLinkElement = null;
   }
+
+  if (infoButtonElement) {
+    infoButtonElement.remove();
+    infoButtonElement = null;
+  }
+  destroyInfoPopover();
 
   if (style) {
     style.remove();

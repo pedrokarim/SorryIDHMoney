@@ -1,4 +1,7 @@
 // by @AliasPedroKarim
+// NOTE: mavanimes.cc / mavanimes.ws est actuellement down (avril 2026).
+// Le code est conservé au cas où le site reviendrait.
+//
 // The code adds a search bar to a webpage and filters a list of anime
 // titles based on the user's input in real-time. It uses a function to find a
 // case-insensitive substring in a string.
@@ -150,6 +153,12 @@ if ([
 }
 
 (async () => {
+  // Vérifier si la plateforme est activée
+  const { enableMavanimes } = await new Promise(r =>
+    chrome.storage.sync.get({ enableMavanimes: true }, r)
+  );
+  if (!enableMavanimes) return;
+
   // Charger les modules de manière asynchrone
   const [cacheModule] = await Promise.all([
     import(animeCacheScript)
@@ -157,7 +166,7 @@ if ([
 
   animeCache = cacheModule.animeCache;
 
-  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, animationCSS, injectCSSAnimation } = await import(
+  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, animationCSS, injectCSSAnimation } = await import(
     srcUtils
   );
   injectCSSAnimation(animationCSS());
@@ -172,6 +181,20 @@ if ([
     await animeCache.setCustomUrl(selection.animeName, selection.anilistUrl);
   }
 
+  function extractAnilistIdFromUrl(url) {
+    try {
+      const u = new URL(url);
+      if (u.hostname !== "anilist.co") return null;
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length >= 2 && parts[0] === "anime" && /^\d+$/.test(parts[1])) {
+        return parts[1];
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   function addButtons(data) {
     if (data?.siteMalUrl || data?.malUrl) {
       addCustomButton("myanimelist", data.siteMalUrl || data.malUrl, { openInNewTab: true });
@@ -184,6 +207,20 @@ if ([
         },
         openInNewTab: true,
       });
+    }
+
+    // Bouton info : utilise la donnée enrichie si dispo, sinon fetch par ID
+    const hasFullData = !!(data?.description || data?.genres?.length || data?.coverImage);
+    if (hasFullData) {
+      addInfoButton(data);
+    } else {
+      const anilistUrl = data?.siteUrl || data?.anilistUrl;
+      const id = anilistUrl ? extractAnilistIdFromUrl(anilistUrl) : null;
+      if (id) {
+        chrome.runtime.sendMessage({ action: "getAnilistMediaById", id }, (full) => {
+          if (full) addInfoButton(full);
+        });
+      }
     }
   }
 

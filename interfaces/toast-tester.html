@@ -7,71 +7,92 @@
     <link rel="stylesheet" href="../styles/toast-tester.css">
 </head>
 <body>
-    <a href="popup.html" class="back-link">Retour</a>
-    <div class="container">
-        <h1>🍞 Testeur de Toasts</h1>
-        <div class="info-message">
-            ℹ️ Les toasts s'afficheront sur la page web active, pas dans cette interface.
+    <div class="manager">
+        <div class="manager-header">
+            <a href="options.html" class="back-btn" title="Retour aux paramètres">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </a>
+            <h1>Testeur de Toasts</h1>
         </div>
 
-        <div class="test-section">
-            <h3>Toast personnalisé</h3>
-            <div class="input-group">
-                <label for="message">Message</label>
-                <input type="text" id="message" placeholder="Votre message..." value="Ceci est un test !">
-            </div>
-
-            <div class="input-group">
-                <label for="type">Type</label>
-                <select id="type">
-                    <option value="success">Succès</option>
-                    <option value="error">Erreur</option>
-                    <option value="warning">Avertissement</option>
-                    <option value="info">Information</option>
-                </select>
-            </div>
-
-            <div class="input-group">
-                <label for="duration">Durée (ms)</label>
-                <input type="number" id="duration" value="3000" min="1000" step="500">
-            </div>
-
-            <div class="input-group">
-                <label for="position">Position</label>
-                <select id="position">
-                    <option value="top-left">Haut Gauche</option>
-                    <option value="top-center">Haut Centre</option>
-                    <option value="top-right" selected>Haut Droite</option>
-                    <option value="bottom-left">Bas Gauche</option>
-                    <option value="bottom-center">Bas Centre</option>
-                    <option value="bottom-right">Bas Droite</option>
-                </select>
-            </div>
-
-            <button id="custom-toast-btn" class="btn btn-primary" style="width: 100%;">
-                Afficher le toast
-            </button>
+        <div class="info-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>Les toasts s'afficheront sur la page web active, pas dans cette interface.</span>
         </div>
 
-        <div class="test-section">
-            <h3>Toasts prédéfinis</h3>
-            <div class="preset-toasts">
-                <button class="preset-toast success" data-type="success">
-                    Toast de succès
+        <div class="settings-group" data-collapsed="false">
+            <div class="settings-group-header" data-toggle="custom">
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                <span>Toast personnalisé</span>
+            </div>
+            <div class="settings-group-content">
+                <div class="setting-item">
+                    <span class="setting-label">Message</span>
+                    <input type="text" id="message" placeholder="Votre message..." value="Ceci est un test !" title="Message du toast">
+                </div>
+                <div class="setting-item">
+                    <span class="setting-label">Type</span>
+                    <select id="type" title="Type de notification">
+                        <option value="success">Succès</option>
+                        <option value="error">Erreur</option>
+                        <option value="warning">Avertissement</option>
+                        <option value="info">Information</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <span class="setting-label">Durée (ms)</span>
+                    <input type="number" id="duration" value="3000" min="1000" step="500" title="Durée d'affichage en millisecondes">
+                </div>
+                <div class="setting-item">
+                    <span class="setting-label">Position</span>
+                    <select id="position" title="Position du toast sur l'écran">
+                        <option value="top-left">Haut Gauche</option>
+                        <option value="top-center">Haut Centre</option>
+                        <option value="top-right" selected>Haut Droite</option>
+                        <option value="bottom-left">Bas Gauche</option>
+                        <option value="bottom-center">Bas Centre</option>
+                        <option value="bottom-right">Bas Droite</option>
+                    </select>
+                </div>
+                <button id="custom-toast-btn" class="send-btn" title="Envoyer le toast sur la page active">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Afficher le toast
                 </button>
-                <button class="preset-toast error" data-type="error">
-                    Toast d'erreur
-                </button>
-                <button class="preset-toast warning" data-type="warning">
-                    Toast d'avertissement
-                </button>
-                <button class="preset-toast info" data-type="info">
-                    Toast d'information
-                </button>
+            </div>
+        </div>
+
+        <div class="settings-group" data-collapsed="false">
+            <div class="settings-group-header" data-toggle="presets">
+                <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                <span>Toasts prédéfinis</span>
+            </div>
+            <div class="settings-group-content">
+                <div class="preset-list">
+                    <button class="preset-item" data-type="success" title="Envoyer un toast de succès">
+                        <span class="preset-dot success"></span>
+                        <span class="preset-label">Succès</span>
+                        <svg class="preset-send" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                    <button class="preset-item" data-type="error" title="Envoyer un toast d'erreur">
+                        <span class="preset-dot error"></span>
+                        <span class="preset-label">Erreur</span>
+                        <svg class="preset-send" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                    <button class="preset-item" data-type="warning" title="Envoyer un toast d'avertissement">
+                        <span class="preset-dot warning"></span>
+                        <span class="preset-label">Avertissement</span>
+                        <svg class="preset-send" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                    <button class="preset-item" data-type="info" title="Envoyer un toast d'information">
+                        <span class="preset-dot info"></span>
+                        <span class="preset-label">Information</span>
+                        <svg class="preset-send" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <script type="module" src="toast-tester.js"></script>
 </body>
-</html> 
+</html>

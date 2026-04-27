@@ -98,16 +98,34 @@ document.addEventListener('DOMContentLoaded', function () {
         censure: false,
         enableMal: true,
         enableAnilist: true,
+        enableVoiranime: true,
+        enableCrunchyroll: true,
+        enableAdkami: true,
+        enableAdn: true,
+        enableGumgum: true,
         enableTwitchRewards: true,
-        enableToasts: true
+        enableToasts: true,
+        enableYoutubeShortsAutoscroll: false,
+        youtubeShortsReplayCount: 0,
+        youtubeShortsScrollDelay: 0
     }, function (items) {
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
         document.getElementById('censure').checked = items.censure;
         document.getElementById('enable-mal').checked = items.enableMal;
         document.getElementById('enable-anilist').checked = items.enableAnilist;
+        document.getElementById('enable-voiranime').checked = items.enableVoiranime;
+
+        document.getElementById('enable-crunchyroll').checked = items.enableCrunchyroll;
+        document.getElementById('enable-adkami').checked = items.enableAdkami;
+        document.getElementById('enable-adn').checked = items.enableAdn;
+        document.getElementById('enable-gumgum').checked = items.enableGumgum;
         document.getElementById('enable-twitch-rewards').checked = items.enableTwitchRewards;
         document.getElementById('enable-toasts').checked = items.enableToasts;
+
+        document.getElementById('enable-yt-shorts-autoscroll').checked = items.enableYoutubeShortsAutoscroll;
+        document.getElementById('yt-shorts-replay-count').value = items.youtubeShortsReplayCount;
+        document.getElementById('yt-shorts-scroll-delay').value = items.youtubeShortsScrollDelay;
 
         updateThemePreview(items.theme);
     });
@@ -155,6 +173,14 @@ document.getElementById('enable-anilist').addEventListener('change', function (e
     });
 });
 
+// Plateformes de streaming — sauvegarde uniquement (pris en compte au prochain chargement de page)
+for (const platform of ['voiranime', 'crunchyroll', 'adkami', 'adn', 'gumgum']) {
+    const key = `enable${platform.charAt(0).toUpperCase() + platform.slice(1)}`;
+    document.getElementById(`enable-${platform}`).addEventListener('change', function (e) {
+        chrome.storage.sync.set({ [key]: e.target.checked });
+    });
+}
+
 document.getElementById('enable-twitch-rewards').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableTwitchRewards: e.target.checked });
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -167,4 +193,33 @@ document.getElementById('enable-twitch-rewards').addEventListener('change', func
 
 document.getElementById('enable-toasts').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableToasts: e.target.checked });
+});
+
+// YouTube Shorts — auto-scroll
+function sendShortsUpdate(payload) {
+    chrome.tabs.query({ url: ['https://www.youtube.com/shorts/*', 'https://m.youtube.com/shorts/*'] }, function (tabs) {
+        if (!tabs) return;
+        for (const tab of tabs) {
+            chrome.tabs.sendMessage(tab.id, { action: 'updateYoutubeShortsAutoscroll', ...payload }, () => void chrome.runtime.lastError);
+        }
+    });
+}
+
+document.getElementById('enable-yt-shorts-autoscroll').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableYoutubeShortsAutoscroll: e.target.checked });
+    sendShortsUpdate({ enabled: e.target.checked });
+});
+
+document.getElementById('yt-shorts-replay-count').addEventListener('change', function (e) {
+    const value = Math.max(0, Math.min(50, parseInt(e.target.value, 10) || 0));
+    e.target.value = value;
+    chrome.storage.sync.set({ youtubeShortsReplayCount: value });
+    sendShortsUpdate({ config: { youtubeShortsReplayCount: value } });
+});
+
+document.getElementById('yt-shorts-scroll-delay').addEventListener('change', function (e) {
+    const value = Math.max(0, Math.min(10000, parseInt(e.target.value, 10) || 0));
+    e.target.value = value;
+    chrome.storage.sync.set({ youtubeShortsScrollDelay: value });
+    sendShortsUpdate({ config: { youtubeShortsScrollDelay: value } });
 });
