@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
         censure: false,
         enableMal: true,
         enableAnilist: true,
+        disableAnimeSwitcherAnimations: false,
         enableVoiranime: true,
         enableCrunchyroll: true,
         enableAdkami: true,
@@ -107,13 +108,15 @@ document.addEventListener('DOMContentLoaded', function () {
         enableToasts: true,
         enableYoutubeShortsAutoscroll: false,
         youtubeShortsReplayCount: 0,
-        youtubeShortsScrollDelay: 0
+        youtubeShortsScrollDelay: 0,
+        enableYoutubeAdblockReload: true
     }, function (items) {
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
         document.getElementById('censure').checked = items.censure;
         document.getElementById('enable-mal').checked = items.enableMal;
         document.getElementById('enable-anilist').checked = items.enableAnilist;
+        document.getElementById('disable-switcher-animations').checked = items.disableAnimeSwitcherAnimations;
         document.getElementById('enable-voiranime').checked = items.enableVoiranime;
 
         document.getElementById('enable-crunchyroll').checked = items.enableCrunchyroll;
@@ -126,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('enable-yt-shorts-autoscroll').checked = items.enableYoutubeShortsAutoscroll;
         document.getElementById('yt-shorts-replay-count').value = items.youtubeShortsReplayCount;
         document.getElementById('yt-shorts-scroll-delay').value = items.youtubeShortsScrollDelay;
+        document.getElementById('enable-yt-adblock-reload').checked = items.enableYoutubeAdblockReload;
 
         updateThemePreview(items.theme);
     });
@@ -169,6 +173,17 @@ document.getElementById('enable-anilist').addEventListener('change', function (e
             action: "updateAnimeSwitcher",
             type: "anilist",
             enabled: e.target.checked
+        });
+    });
+});
+
+document.getElementById('disable-switcher-animations').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ disableAnimeSwitcherAnimations: e.target.checked });
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+            action: "updateAnimeSwitcher",
+            type: "animations",
+            enabled: !e.target.checked
         });
     });
 });
@@ -222,4 +237,8 @@ document.getElementById('yt-shorts-scroll-delay').addEventListener('change', fun
     e.target.value = value;
     chrome.storage.sync.set({ youtubeShortsScrollDelay: value });
     sendShortsUpdate({ config: { youtubeShortsScrollDelay: value } });
+});
+
+document.getElementById('enable-yt-adblock-reload').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableYoutubeAdblockReload: e.target.checked });
 });
