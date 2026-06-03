@@ -166,10 +166,10 @@ if ([
 
   animeCache = cacheModule.animeCache;
 
-  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, animationCSS, injectCSSAnimation } = await import(
+  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, setupAnimationCSS } = await import(
     srcUtils
   );
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
 
   // replace de href par "/" du premier élément (#menu-items li a) sur toute les pages
   document?.querySelectorAll("#menu-items li a")[0]?.setAttribute("href", "/");

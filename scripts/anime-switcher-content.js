@@ -24,8 +24,6 @@ chrome.storage.sync.get({
 }, function (items) {
   enableMal = items.enableMal;
   enableAnilist = items.enableAnilist;
-
-
 });
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
@@ -47,7 +45,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 });
 
 (async () => {
-  const { addCustomButton, animationCSS, injectCSSAnimation, resetButton } = await import(
+  const { addCustomButton, setupAnimationCSS, resetButton } = await import(
     srcUtils
   );
 
@@ -259,6 +257,6 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     });
   }
 
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
   animeSwitcher();
 })();

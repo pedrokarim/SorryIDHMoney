@@ -1177,11 +1177,29 @@ function createResultItem(anime, animeName, onAnimeSelected) {
 // ─── Animation & Reset ──────────────────────────────────────────────────
 
 export function injectCSSAnimation(animationCSS) {
+  if (style && style.parentNode) style.parentNode.removeChild(style);
   style = document.createElement("style");
   style.type = "text/css";
+  style.id = "anime-switcher-animation";
   style.appendChild(document.createTextNode(animationCSS));
 
   document.head.appendChild(style);
+}
+
+// Source unique pour gérer l'animation CSS sur toutes les plateformes :
+// lit le storage, injecte le bon CSS, et réécoute les changements en live.
+let animationStorageListenerInstalled = false;
+export function setupAnimationCSS() {
+  chrome.storage.sync.get({ disableAnimeSwitcherAnimations: false }, items => {
+    injectCSSAnimation(animationCSS(items.disableAnimeSwitcherAnimations));
+  });
+  if (animationStorageListenerInstalled) return;
+  animationStorageListenerInstalled = true;
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "sync") return;
+    if (!changes.disableAnimeSwitcherAnimations) return;
+    injectCSSAnimation(animationCSS(!!changes.disableAnimeSwitcherAnimations.newValue));
+  });
 }
 
 const listAnimations = [
@@ -1280,8 +1298,18 @@ const listAnimations = [
     }`,
 ];
 
-export const animationCSS = () =>
-  listAnimations[Math.floor(Math.random() * listAnimations.length)] + `
+export const animationCSS = (disable = false) => {
+  if (disable) {
+    return `
+    .custom-button {
+      animation: none !important;
+    }
+    .custom-button-edit {
+      animation: none !important;
+    }
+`;
+  }
+  return listAnimations[Math.floor(Math.random() * listAnimations.length)] + `
     .custom-button {
       animation: buttonLinkAnimation 2s ease infinite;
     }
@@ -1292,6 +1320,7 @@ export const animationCSS = () =>
       animation: none !important;
     }
 `;
+};
 
 export function resetButton() {
   // Safety net : nettoyer aussi par sélecteur CSS au cas où les références module
@@ -1322,5 +1351,5 @@ export function resetButton() {
 
   removeEditButtons();
 
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
 }

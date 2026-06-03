@@ -96,11 +96,10 @@ function initializeAnimeDetection() {
     addEditButtons,
     enableEditModeOnButtons,
     addInfoButton,
-    animationCSS,
-    injectCSSAnimation,
+    setupAnimationCSS,
   } = utils;
 
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
 
   // 1. JSON-LD (page épisode — contient mal_id directement)
   const ldData = extractFromJsonLd();

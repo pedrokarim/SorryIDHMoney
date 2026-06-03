@@ -100,8 +100,8 @@ function extractAnilistIdFromUrl(url) {
 
 // Fonction qui gère la détection des animes et l'ajout des boutons
 async function initializeAnimeDetection() {
-  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, animationCSS, injectCSSAnimation } = utils;
-  injectCSSAnimation(animationCSS());
+  const { addCustomButton, addEditButtons, removeEditButtons, addExitEditButton, enableEditModeOnButtons, addInfoButton, setupAnimationCSS } = utils;
+  setupAnimationCSS();
 
   const episodeTitleRaw = extractAnimeTitle();
   if (!episodeTitleRaw) return;

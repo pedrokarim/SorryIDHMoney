@@ -141,11 +141,10 @@ function initializeAnimeDetection(animeTitleRaw) {
     addEditButtons,
     enableEditModeOnButtons,
     addInfoButton,
-    animationCSS,
-    injectCSSAnimation,
+    setupAnimationCSS,
   } = utils;
 
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
 
   const animeTitle = animeTitleRaw.toLowerCase();
 

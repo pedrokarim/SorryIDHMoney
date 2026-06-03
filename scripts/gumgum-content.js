@@ -98,11 +98,10 @@ function initializeAnimeDetection() {
     addEditButtons,
     enableEditModeOnButtons,
     addInfoButton,
-    animationCSS,
-    injectCSSAnimation,
+    setupAnimationCSS,
   } = utils;
 
-  injectCSSAnimation(animationCSS());
+  setupAnimationCSS();
 
   const animeTitleRaw = extractAnimeTitle();
   if (!animeTitleRaw) return;
