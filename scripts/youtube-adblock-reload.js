@@ -10,6 +10,17 @@ const TIMER_ATTR = 'data-sidhm-adblock-timer';
 const COUNTDOWN_SECONDS = 3;
 const STYLE_ID = 'sidhm-adblock-timer-style';
 const LABELS = ['découvrez pourquoi', 'découvrir pourquoi', 'discover why', 'descubrir por qué', 'descobrir o motivo', 'warum'];
+// Textes du message lui-même (le toast change parfois et n'expose plus de bouton avec un label connu)
+const MESSAGES = [
+    'la lecture de votre vidéo se bloque',
+    'la lecture de la vidéo se bloque',
+    'video playback is blocked',
+    'video playback blocked',
+    'playback is blocked',
+    'reproducción de tu vídeo se bloquea',
+    'reprodução do seu vídeo está bloqueada',
+    'wiedergabe deines videos wird blockiert',
+];
 
 let timerActive = false;
 let timerEl = null;
@@ -75,19 +86,49 @@ function matchesAdblockLabel(el) {
     return LABELS.some(label => text === label || text.startsWith(label) || text.endsWith(label));
 }
 
+function containerHasAdblockMessage(scope) {
+    if (!scope) return false;
+    // Limite à 1000 chars pour éviter de scanner toute la page
+    const text = (scope.textContent || '').trim().toLowerCase().slice(0, 1000);
+    if (!text) return false;
+    return MESSAGES.some(msg => text.includes(msg));
+}
+
+function findActionButton(scope) {
+    if (!scope) return null;
+    const candidates = scope.querySelectorAll('#action-button a, #action-button button, yt-button-renderer a, yt-button-renderer button, yt-button-shape a, yt-button-shape button, button, a');
+    for (const el of candidates) {
+        if (matchesAdblockLabel(el)) return el;
+    }
+    // Fallback : premier bouton/lien visible du toast (souvent le CTA principal)
+    for (const el of candidates) {
+        if (el.offsetParent !== null) return el;
+    }
+    return null;
+}
+
 function findDiscoverButton() {
     // Cas 1 : toast en bas de page (yt-notification-action-renderer)
     const toasts = document.querySelectorAll('yt-notification-action-renderer tp-yt-paper-toast');
     for (const toast of toasts) {
         if (!isToastVisible(toast)) continue;
+        // 1a : label de bouton connu
         const link = toast.querySelector('#action-button a, yt-button-renderer a, yt-button-shape a, button, a');
         if (link && matchesAdblockLabel(link)) return { button: link, host: toast };
+        // 1b : nouveau format — détection par le texte du message
+        if (containerHasAdblockMessage(toast)) {
+            const fallbackBtn = findActionButton(toast);
+            return { button: fallbackBtn || toast, host: toast };
+        }
     }
-    // Cas 2 : modale plein écran (ytd-enforcement-message-view-model / popup container)
+    // Cas 2 : mealbar / banner / enforcement / dialog
+    // Note : on évite ytd-popup-container direct (sous-arbre énorme) — on scanne ses dialogs ouverts.
     const scopes = [
         ...document.querySelectorAll('ytd-enforcement-message-view-model'),
-        ...document.querySelectorAll('ytd-popup-container'),
-        ...document.querySelectorAll('tp-yt-paper-dialog'),
+        ...document.querySelectorAll('yt-mealbar-promo-renderer'),
+        ...document.querySelectorAll('ytd-banner-promo-renderer'),
+        ...document.querySelectorAll('ytd-popup-container tp-yt-paper-dialog'),
+        ...document.querySelectorAll('tp-yt-paper-dialog[opened]'),
     ];
     for (const scope of scopes) {
         const candidates = scope.querySelectorAll('button, a, yt-button-shape, tp-yt-paper-button');
@@ -95,6 +136,11 @@ function findDiscoverButton() {
             if (matchesAdblockLabel(el)) {
                 return { button: el.querySelector('button, a') || el, host: null };
             }
+        }
+        // Fallback : message connu dans la modale
+        if (containerHasAdblockMessage(scope)) {
+            const fallbackBtn = findActionButton(scope);
+            return { button: fallbackBtn || scope, host: null };
         }
     }
     return null;
@@ -104,8 +150,13 @@ let hostToast = null;
 
 function injectTimer({ button, host }) {
     if (timerActive) return;
-    const anchor = button.closest('yt-button-renderer, button-view-model, yt-button-shape') || button;
-    if (anchor.parentElement?.querySelector(`[${TIMER_ATTR}]`)) return;
+    // Si on n'a pas trouvé de vrai bouton, "button" est le container (toast/scope) lui-même
+    const buttonIsContainer = button === host || button.matches?.('tp-yt-paper-toast, ytd-enforcement-message-view-model, ytd-popup-container, tp-yt-paper-dialog, yt-mealbar-promo-renderer, ytd-banner-promo-renderer');
+    const anchor = buttonIsContainer
+        ? button
+        : (button.closest('yt-button-renderer, button-view-model, yt-button-shape') || button);
+    const dupScope = buttonIsContainer ? anchor : anchor.parentElement;
+    if (dupScope?.querySelector(`[${TIMER_ATTR}]`)) return;
 
     ensureStyle();
     timerActive = true;
@@ -126,7 +177,14 @@ function injectTimer({ button, host }) {
     label.textContent = 'Rechargement dans';
 
     timer.append(label, num);
-    anchor.insertAdjacentElement('afterend', timer);
+    if (buttonIsContainer) {
+        // Append à l'intérieur du toast/modale, comme une nouvelle ligne en bas
+        timer.style.display = 'inline-flex';
+        timer.style.margin = '8px 12px';
+        anchor.appendChild(timer);
+    } else {
+        anchor.insertAdjacentElement('afterend', timer);
+    }
     timerEl = timer;
 
     let remaining = COUNTDOWN_SECONDS;
@@ -163,9 +221,20 @@ function check() {
     if (found) injectTimer(found);
 }
 
+let checkScheduled = false;
+function scheduleCheck() {
+    if (checkScheduled) return;
+    checkScheduled = true;
+    requestAnimationFrame(() => {
+        checkScheduled = false;
+        check();
+    });
+}
+
 function startObserver() {
     if (observer) return;
-    observer = new MutationObserver(() => check());
+    // Debounce via rAF : YouTube génère beaucoup de mutations, inutile de scanner à chacune
+    observer = new MutationObserver(() => scheduleCheck());
     // childList + attributes : le toast existe avant d'apparaître, il bascule via aria-hidden/style
     observer.observe(document.documentElement, {
         childList: true,
