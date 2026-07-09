@@ -159,6 +159,34 @@ function applyWheelScrollFix() {
 }
 applyWheelScrollFix();
 
+// --- Règle globale (tous sites) ---
+// Si le <body> a la classe "no-touch" et un overflow hidden (inline ou CSS),
+// on retire le overflow hidden pour réautoriser le scroll de la page.
+function fixNoTouchOverflow() {
+  const body = document.body;
+  if (!body || !body.classList || !body.classList.contains('no-touch')) return;
+  const computed = getComputedStyle(body);
+  if (
+    computed.overflow === 'hidden' ||
+    computed.overflowX === 'hidden' ||
+    computed.overflowY === 'hidden'
+  ) {
+    body.style.setProperty('overflow', 'visible', 'important');
+    body.style.setProperty('overflow-x', 'visible', 'important');
+    body.style.setProperty('overflow-y', 'visible', 'important');
+  }
+}
+
+// Application initiale + ré-application sur changement de style/classe du body (tous sites)
+fixNoTouchOverflow();
+const noTouchObserver = new MutationObserver(fixNoTouchOverflow);
+if (document.body) {
+  noTouchObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['style', 'class'],
+  });
+}
+
 // Configuration de l'observateur de mutations (scroll-lock / overlay) — uniquement sur le site autorisé
 const observer = new MutationObserver((mutations) => {
   if (!isAllowedSite()) return;
