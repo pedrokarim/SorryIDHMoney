@@ -33,7 +33,7 @@
     },
     {
       "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["scripts/youtube-auto-reload.js"],
+      "js": ["scripts/youtube-smooth-playback.js"],
       "run_at": "document_start"
     },
     {
