@@ -597,7 +597,12 @@ function createInfoPopover(anchorElement, animeData) {
   // ─── Prochaine sortie ───
   if (animeData.nextAiringEpisode) {
     const next = animeData.nextAiringEpisode;
-    const timeLeft = formatTimeUntil(next.timeUntilAiring);
+    // Recalcule depuis airingAt (timestamp absolu) pour rester juste même si la fiche
+    // vient du cache persistant ; fallback sur timeUntilAiring (relatif, figé au fetch).
+    const secondsLeft = next.airingAt
+      ? next.airingAt - Math.floor(Date.now() / 1000)
+      : next.timeUntilAiring;
+    const timeLeft = formatTimeUntil(secondsLeft);
     if (timeLeft) {
       const nextBox = document.createElement("div");
       Object.assign(nextBox.style, {

@@ -23,6 +23,65 @@ function setApiCache(key, data) {
   apiCache.set(key, { data, timestamp: Date.now() });
 }
 
+// Cache persistant (chrome.storage.local via cache.js) — L2 qui SURVIT à la mort du
+// service worker MV3, contrairement au Map en mémoire (L1) vidé à chaque arrêt du SW.
+// C'est lui qui évite de re-spammer l'API AniList quand on enchaîne les épisodes.
+// TTL adaptés au statut : une fiche terminée ne change plus, un anime en cours évolue
+// (nextAiringEpisode, nombre d'épisodes) → on la garde moins longtemps.
+const PERSIST_TTL_FINISHED = 7 * 24 * 60 * 60;   // 7 jours
+const PERSIST_TTL_RELEASING = 12 * 60 * 60;      // 12 heures
+const PERSIST_TTL_DEFAULT = 24 * 60 * 60;        // 24 heures
+const ANILIST_CACHE_PREFIX = 'sorryidhmoney.anilist:'; // préfixe des clés (namespace cache.js)
+
+function persistTtlFor(media) {
+  switch (media?.status) {
+    case 'FINISHED':
+    case 'CANCELLED':
+      return PERSIST_TTL_FINISHED;
+    case 'RELEASING':
+    case 'NOT_YET_RELEASED':
+    case 'HIATUS':
+      return PERSIST_TTL_RELEASING;
+    default:
+      return PERSIST_TTL_DEFAULT;
+  }
+}
+
+// Lecture L2 tolérante aux erreurs (renvoie null si storage HS ou entrée expirée)
+async function getPersistentCache(key) {
+  try { return await getCachedDataByKey(key); } catch { return null; }
+}
+
+// Écrit en L2 uniquement les résultats trouvés (jamais les null : un not-found ou une
+// erreur réseau transitoire ne doit pas être figé pendant des heures).
+function setPersistentCache(key, result) {
+  if (result) cacheData(key, result, persistTtlFor(result));
+}
+
+// Nettoyage des entrées AniList expirées (cache.js ne supprime jamais, il ignore juste
+// les entrées périmées). Appelé aux moments peu fréquents (démarrage / install/màj).
+async function pruneExpiredAnilistCache() {
+  try {
+    const all = await chrome.storage.local.get(null);
+    const now = Date.now();
+    const toRemove = [];
+    for (const key in all) {
+      if (key.startsWith(ANILIST_CACHE_PREFIX)) {
+        const entry = all[key];
+        if (!entry || typeof entry.expires !== 'number' || entry.expires <= now) {
+          toRemove.push(key);
+        }
+      }
+    }
+    if (toRemove.length) {
+      await chrome.storage.local.remove(toRemove);
+      console.log(`[AnilistCache] ${toRemove.length} entrées expirées supprimées`);
+    }
+  } catch (e) {
+    console.warn('[AnilistCache] Nettoyage échoué:', e);
+  }
+}
+
 // Fonction pour nettoyer les termes de recherche
 function sanitizeSearchTerm(search) {
   if (!search) return '';
@@ -73,8 +132,13 @@ async function getAnilistMediaById(id) {
   if (!id || isNaN(parseInt(id))) return null;
 
   const cacheKey = `anilist:id:${id}`;
-  const cached = getApiCache(cacheKey);
-  if (cached !== null) return cached;
+  const cached = getApiCache(cacheKey);            // L1 mémoire
+  if (cached) return cached;
+  const persisted = await getPersistentCache(cacheKey); // L2 storage (survit au SW)
+  if (persisted) {
+    setApiCache(cacheKey, persisted);
+    return persisted;
+  }
 
   const query = `query ($id: Int) {
     Media(id: $id, type: ANIME) {
@@ -101,6 +165,7 @@ async function getAnilistMediaById(id) {
     : null;
 
   setApiCache(cacheKey, result);
+  setPersistentCache(cacheKey, result);
   return result;
 }
 
@@ -113,12 +178,19 @@ async function getAnilistMediaInfo(search) {
     sanitizedSearch
   )
 
-  // Vérifier le cache mémoire
+  // L1 mémoire
   const cacheKey = `anilist:${sanitizedSearch.toLowerCase()}`;
   const cached = getApiCache(cacheKey);
-  if (cached !== null) {
-    console.log("Cache hit for:", sanitizedSearch);
+  if (cached) {
+    console.log("Cache hit (mémoire) for:", sanitizedSearch);
     return cached;
+  }
+  // L2 storage persistant (survit à la mort du service worker)
+  const persisted = await getPersistentCache(cacheKey);
+  if (persisted) {
+    console.log("Cache hit (storage) for:", sanitizedSearch);
+    setApiCache(cacheKey, persisted);
+    return persisted;
   }
 
   const query = `query ($search: String) {
@@ -152,8 +224,9 @@ async function getAnilistMediaInfo(search) {
     }
     : null;
 
-  // Mettre en cache le résultat (même null pour éviter de re-requêter)
+  // Mise en cache : L1 mémoire (court terme) + L2 storage (uniquement si trouvé)
   setApiCache(cacheKey, result);
+  setPersistentCache(cacheKey, result);
 
   return result;
 }
@@ -384,11 +457,13 @@ connectToGateway();
 chrome.runtime.onStartup.addListener(() => {
   installGatewayAlarm();
   ensureGatewayConnection();
+  pruneExpiredAnilistCache();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   installGatewayAlarm();
   ensureGatewayConnection();
+  pruneExpiredAnilistCache();
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
