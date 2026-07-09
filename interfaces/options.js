@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', function () {
         enableYoutubeShortsAutoscroll: false,
         youtubeShortsReplayCount: 0,
         youtubeShortsScrollDelay: 0,
-        enableYoutubeAdblockReload: true
+        enableYoutubeAutoReload: true
     }, function (items) {
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
@@ -129,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('enable-yt-shorts-autoscroll').checked = items.enableYoutubeShortsAutoscroll;
         document.getElementById('yt-shorts-replay-count').value = items.youtubeShortsReplayCount;
         document.getElementById('yt-shorts-scroll-delay').value = items.youtubeShortsScrollDelay;
-        document.getElementById('enable-yt-adblock-reload').checked = items.enableYoutubeAdblockReload;
+        document.getElementById('enable-yt-auto-reload').checked = items.enableYoutubeAutoReload;
 
         updateThemePreview(items.theme);
     });
@@ -239,6 +239,6 @@ document.getElementById('yt-shorts-scroll-delay').addEventListener('change', fun
     sendShortsUpdate({ config: { youtubeShortsScrollDelay: value } });
 });
 
-document.getElementById('enable-yt-adblock-reload').addEventListener('change', function (e) {
-    chrome.storage.sync.set({ enableYoutubeAdblockReload: e.target.checked });
+document.getElementById('enable-yt-auto-reload').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableYoutubeAutoReload: e.target.checked });
 });

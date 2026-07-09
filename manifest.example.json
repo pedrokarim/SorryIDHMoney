@@ -26,13 +26,6 @@
   },
   "content_scripts": [
     {
-      "js": ["scripts/self-youtube-ads-block.js"],
-      "matches": [
-        "https://www.youtube.com/*",
-        "https://www.youtube-nocookie.com/*"
-      ]
-    },
-    {
       "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
       "js": ["scripts/youtube-shorts-autoscroll.js"],
       "type": "module",
@@ -40,9 +33,8 @@
     },
     {
       "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["scripts/youtube-adblock-reload.js"],
-      "type": "module",
-      "run_at": "document_idle"
+      "js": ["scripts/youtube-auto-reload.js"],
+      "run_at": "document_start"
     },
     {
       "matches": ["http://*/*", "https://*/*"],
