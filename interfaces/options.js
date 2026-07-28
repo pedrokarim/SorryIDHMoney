@@ -109,7 +109,17 @@ document.addEventListener('DOMContentLoaded', function () {
         enableYoutubeShortsAutoscroll: false,
         youtubeShortsReplayCount: 0,
         youtubeShortsScrollDelay: 0,
-        enableYoutubeSmoothPlayback: true
+        enableYoutubeSmoothPlayback: true,
+        enableAgeVerifBypass: true,
+        enableAvbReddit: true,
+        enableAvbAliexpress: true,
+        enableAvbBsky: true,
+        enableAvbXcom: true,
+        enableAvbXcomIndicator: false,
+        enableAvbAgechecker: true,
+        enableAvbAgego: true,
+        enableAvbAgeverif: true,
+        enableAvbVeriff: true
     }, function (items) {
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
@@ -130,6 +140,19 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('yt-shorts-replay-count').value = items.youtubeShortsReplayCount;
         document.getElementById('yt-shorts-scroll-delay').value = items.youtubeShortsScrollDelay;
         document.getElementById('enable-yt-smooth-playback').checked = items.enableYoutubeSmoothPlayback;
+
+        document.getElementById('enable-age-verif-bypass').checked = items.enableAgeVerifBypass;
+        document.getElementById('enable-avb-reddit').checked = items.enableAvbReddit;
+        document.getElementById('enable-avb-aliexpress').checked = items.enableAvbAliexpress;
+        document.getElementById('enable-avb-bsky').checked = items.enableAvbBsky;
+        document.getElementById('enable-avb-xcom').checked = items.enableAvbXcom;
+        document.getElementById('enable-avb-xcom-indicator').checked = items.enableAvbXcomIndicator;
+        document.getElementById('enable-avb-agechecker').checked = items.enableAvbAgechecker;
+        document.getElementById('enable-avb-agego').checked = items.enableAvbAgego;
+        document.getElementById('enable-avb-ageverif').checked = items.enableAvbAgeverif;
+        document.getElementById('enable-avb-veriff').checked = items.enableAvbVeriff;
+        reflectAvbMaster(items.enableAgeVerifBypass);
+        reflectXcomIndicator();
 
         updateThemePreview(items.theme);
     });
@@ -241,4 +264,49 @@ document.getElementById('yt-shorts-scroll-delay').addEventListener('change', fun
 
 document.getElementById('enable-yt-smooth-playback').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableYoutubeSmoothPlayback: e.target.checked });
+});
+
+// Bypass vérification d'âge — persistance uniquement. background.js (avb-manager)
+// écoute storage.onChanged et réapplique règles DNR + injection. Les content
+// scripts DOM (reddit/aliexpress) prennent effet au prochain chargement de page.
+const AVB_SUB_TOGGLES = ['reddit', 'aliexpress', 'bsky', 'xcom', 'agechecker', 'agego', 'ageverif', 'veriff'];
+
+// Grise les sous-toggles quand le module maître est désactivé.
+function reflectAvbMaster(masterEnabled) {
+    for (const site of AVB_SUB_TOGGLES) {
+        const input = document.getElementById(`enable-avb-${site}`);
+        if (!input) continue;
+        input.disabled = !masterEnabled;
+        input.closest('.setting-item')?.classList.toggle('is-disabled', !masterEnabled);
+    }
+    reflectXcomIndicator();
+}
+
+// La pastille X ne fait sens que si le module maître ET le bypass X sont actifs.
+function reflectXcomIndicator() {
+    const master = document.getElementById('enable-age-verif-bypass').checked;
+    const xcom = document.getElementById('enable-avb-xcom').checked;
+    const input = document.getElementById('enable-avb-xcom-indicator');
+    const available = master && xcom;
+    input.disabled = !available;
+    input.closest('.setting-item')?.classList.toggle('is-disabled', !available);
+}
+
+document.getElementById('enable-age-verif-bypass').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableAgeVerifBypass: e.target.checked });
+    reflectAvbMaster(e.target.checked);
+});
+
+for (const site of AVB_SUB_TOGGLES) {
+    // enableAvbReddit, enableAvbAliexpress, ...
+    const key = `enableAvb${site.charAt(0).toUpperCase() + site.slice(1)}`;
+    document.getElementById(`enable-avb-${site}`).addEventListener('change', function (e) {
+        chrome.storage.sync.set({ [key]: e.target.checked });
+    });
+}
+
+// Toggle dépendant : afficher la pastille de statut sur la page X (défaut off).
+document.getElementById('enable-avb-xcom').addEventListener('change', reflectXcomIndicator);
+document.getElementById('enable-avb-xcom-indicator').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableAvbXcomIndicator: e.target.checked });
 });

@@ -137,3 +137,76 @@ body {
   color: #555;
   text-decoration: none;
 }
+
+/* Carte statut du bypass X / Twitter */
+.xcom-status {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.xcom-status-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.xcom-status-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.xcom-status-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.status-badge.ok   { background: rgba(76,175,80,0.12);  color: #3d8b40; }
+.status-badge.err  { background: rgba(244,67,54,0.12);  color: #d32f2f; }
+.status-badge.warn { background: rgba(255,152,0,0.14);  color: #f57c00; }
+.status-badge.gray { background: #f0f0f0;               color: #888;    }
+
+.xcom-hooks {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.xcom-hooks li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #555;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+
+.xcom-hooks li.muted {
+  color: #999;
+  font-style: italic;
+}
+
+.xcom-hooks .hook-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+}

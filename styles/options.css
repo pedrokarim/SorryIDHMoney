@@ -230,3 +230,16 @@ input[type="number"]:focus {
   color: #888;
   flex-shrink: 0;
 }
+
+/* Bypass verification d'age — sous-toggles grises quand le module maitre est off */
+.setting-item.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Sous-option imbriquée (ex. pastille de statut X, dépend du toggle X) */
+.setting-label-nested {
+  padding-left: 26px;
+  font-size: 12px;
+  color: var(--gray-dark, #666);
+}

@@ -13,7 +13,8 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "declarativeNetRequest"],
+  "host_permissions": ["<all_urls>"],
   "options_page": "interfaces/options.html",
   "action": {
     "default_popup": "interfaces/popup.html",
@@ -85,6 +86,21 @@
       "matches": ["https://www.twitch.tv/*"],
       "js": ["scripts/twitch-rewards-content.js"],
       "type": "module"
+    },
+    {
+      "matches": ["*://*.reddit.com/*"],
+      "js": ["scripts/avb/reddit-avb.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.aliexpress.com/*"],
+      "js": ["scripts/avb/aliexpress-avb.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["scripts/avb/xcom-bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [

@@ -5,6 +5,10 @@ import {
   getCachedDataByTerm,
 } from "./scripts/cache.js";
 
+// Module "Bypass verification d'age" : effet de bord a l'import (regles DNR
+// dynamiques + injection MAIN world bsky + ecoute des toggles). Voir scripts/avb/.
+import "./scripts/avb/avb-manager.js";
+
 // Cache mémoire pour éviter de spammer l'API AniList (durée de vie = durée du service worker)
 const apiCache = new Map();
 const API_CACHE_TTL = 10 * 60 * 1000; // 10 minutes en mémoire
