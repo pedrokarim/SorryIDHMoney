@@ -13,6 +13,7 @@ const ETATS = {
   prepare: ['ok', 'préparée'],
   publie: ['ok', 'publiée'],
   echec: ['err', 'échec'],
+  manquee: ['err', 'manquée'],
 };
 
 const el = (id) => document.getElementById(id);
@@ -39,7 +40,9 @@ function carte(p) {
   const div = document.createElement('div');
   div.className = 'xp-item';
 
-  const nbImages = (p.images || []).length;
+  // Une entree en attente porte encore ses octets ; une entree passee n'a
+  // plus que leur compte.
+  const nbImages = (p.images || []).length || p.nbImages || 0;
   const date = p.etat === 'en attente' ? p.quand : (p.execute || p.quand);
 
   const meta = [
@@ -128,7 +131,8 @@ function rendre(cfg, local, composeurs) {
 
   el('xp-n-attente').textContent = attente.length;
   el('xp-n-ok').textContent = finies.filter((p) => p.etat === 'prepare' || p.etat === 'publie').length;
-  el('xp-n-echec').textContent = finies.filter((p) => p.etat === 'echec').length;
+  // Une echeance manquee compte parmi les ratees : elle n a rien produit.
+  el('xp-n-echec').textContent = finies.filter((p) => p.etat === 'echec' || p.etat === 'manquee').length;
 
   remplir(el('xp-attente'), attente, 'Rien de programmé.');
   remplir(el('xp-historique'), finies, 'Rien encore.');

@@ -18,6 +18,15 @@ const PREFIXE_ALARME = 'xposter:';
 /** Delai minimal d'une alarme MV3. En dessous, Chrome l'ignore. */
 const MINUTE_MIN = 0.5;
 
+/**
+ * Au-dela de ce retard, une echeance manquee n'est plus rattrapee.
+ *
+ * Une heure de publication est un choix, pas une approximation : la poster
+ * six heures plus tard parce que la machine etait eteinte, c'est publier
+ * ailleurs que la ou on visait — de nuit, ou devant personne.
+ */
+const RETARD_MAX = 30 * 60 * 1000;
+
 async function lireFile() {
   const { [CLE_FILE]: file } = await chrome.storage.local.get({ [CLE_FILE]: [] });
   return file;
@@ -62,8 +71,26 @@ export async function annuler(id) {
   return true;
 }
 
+/**
+ * Une copie sans les octets.
+ *
+ * Une image de 3,5 Mo pese 4,7 Mo une fois en base64. Le stockage local de
+ * l'extension plafonne a 10 Mo : vingt entrees d'historique en auraient
+ * reclame quatre-vingt-quinze. L'ecriture aurait echoue — et elle emporte la
+ * file entiere, publications en attente comprises.
+ *
+ * Les octets ne servaient qu'a la composition. Une fois celle-ci passee,
+ * savoir combien d'images sont parties suffit a l'historique.
+ */
+const sansOctets = (p) => ({
+  ...p,
+  images: [],
+  nbImages: (p.images || []).length || p.nbImages || 0,
+});
+
 export async function lister() {
-  return lireFile();
+  // Un inventaire repart par le pont : il n'a pas a transporter les images.
+  return (await lireFile()).map(sansOctets);
 }
 
 /**
@@ -94,6 +121,46 @@ async function ongletComposeur() {
   }
   await new Promise((r) => setTimeout(r, 1500));
   return onglet;
+}
+
+/**
+ * Repose les reveils a partir de la file.
+ *
+ * Recharger l'extension efface ses alarmes, pas son stockage : la file
+ * continuait d'afficher une publication « en attente » que plus rien ne
+ * devait reveiller. Un redemarrage du navigateur les repose donc toutes.
+ *
+ * Une echeance largement depassee n'est pas rattrapee en silence, elle est
+ * marquee manquee. Le contraire — publier a l'improviste des heures apres
+ * l'heure choisie — serait une surprise, et une mauvaise.
+ */
+export async function rearmer() {
+  const file = await lireFile();
+  let modifie = false;
+
+  for (const publication of file) {
+    if (publication.etat !== 'en attente') continue;
+
+    const retard = Date.now() - publication.quand;
+    if (retard > RETARD_MAX) {
+      publication.etat = 'manquee';
+      publication.execute = Date.now();
+      publication.rapport = {
+        ok: false,
+        erreur: `echeance depassee de ${Math.round(retard / 60000)} min — navigateur eteint ?`,
+      };
+      modifie = true;
+      console.warn(LOG, 'manquee', publication.id);
+      continue;
+    }
+
+    await chrome.alarms.create(PREFIXE_ALARME + publication.id, {
+      delayInMinutes: Math.max(MINUTE_MIN, (publication.quand - Date.now()) / 60000),
+    });
+  }
+
+  if (modifie) await ecrireFile(file);
+  return file.filter((p) => p.etat === 'en attente').length;
 }
 
 /**
@@ -190,7 +257,8 @@ export async function surAlarme(alarme) {
   const finies = file
     .filter((p) => p.etat !== 'en attente')
     .sort((a, b) => (b.execute || 0) - (a.execute || 0))
-    .slice(0, 20);
+    .slice(0, 20)
+    .map(sansOctets);
 
   await ecrireFile([...attente, ...finies]);
 }

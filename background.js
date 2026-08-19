@@ -18,7 +18,7 @@ import "./scripts/avb/avb-manager.js";
  * eteint.
  */
 import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
-import { surAlarme, annuler as annulerPublication, capturerComposeur } from "./scripts/xposter-queue.js";
+import { surAlarme, annuler as annulerPublication, capturerComposeur, rearmer } from "./scripts/xposter-queue.js";
 
 installerVeille();
 sonder();
@@ -268,10 +268,14 @@ async function getAnilistMediaInfo(search) {
 
 chrome.runtime.onStartup.addListener(() => {
   pruneExpiredAnilistCache();
+  rearmer();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   pruneExpiredAnilistCache();
+  // Vaut aussi pour un simple rechargement de l extension : les alarmes sont
+  // parties, la file est restee.
+  rearmer();
 });
 
 // Listen for messages from the content script
