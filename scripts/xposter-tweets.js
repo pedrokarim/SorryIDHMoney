@@ -18,7 +18,7 @@
 const LOG = '[XPoster]';
 
 /** Au-dela, on rend ce qu'on a plutot que de faire defiler indefiniment. */
-const TOURS_MAX = 60;
+const TOURS_MAX = 150;
 
 /**
  * Le releve, execute dans la page.
@@ -78,8 +78,16 @@ function releverDansLaPage(toursMax, maximum) {
       noter();
       if (maximum && vus.size >= maximum) break;
 
-      window.scrollTo(0, document.documentElement.scrollHeight);
-      await new Promise((r) => setTimeout(r, 1100));
+      /*
+       * Par petits pas, et surtout pas jusqu'en bas d'un coup.
+       *
+       * Un saut a `scrollHeight` traverse la liste virtualisee sans lui
+       * laisser le temps de monter ce qu'elle enjambe : le releve gardait les
+       * posts du haut et ceux du bas, et perdait tout un bloc au milieu sans
+       * que rien ne le signale — la periode couverte avait l'air complete.
+       */
+      window.scrollBy(0, window.innerHeight * 0.7);
+      await new Promise((r) => setTimeout(r, 900));
 
       /*
        * On compte les tours sans nouveau post, pas les tours sans que la page
