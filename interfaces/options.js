@@ -129,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('xposter-autoriser-publication').checked = items.xposterAutoriserPublication;
         document.getElementById('xposter-port').value = items.xposterPort;
         document.getElementById('xposter-token').value = items.xposterToken;
+        rappelerCommande(items.xposterToken, items.xposterPort);
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
         document.getElementById('censure').checked = items.censure;
@@ -167,6 +168,63 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // ── Publication X ────────────────────────────────────────────────────────
+
+/**
+ * Jeton aleatoire.
+ *
+ * `crypto.getRandomValues` et non `Math.random` : ce jeton est la seule chose
+ * qui separe un navigateur connecte d'un port ouvert sur la machine, et
+ * `Math.random` n'est pas fait pour ca. 24 octets en base36, ca suffit
+ * largement pour un service qui n'ecoute que sur 127.0.0.1.
+ */
+function genererJeton() {
+    const octets = new Uint8Array(24);
+    crypto.getRandomValues(octets);
+    return Array.from(octets, (o) => o.toString(36).padStart(2, '0')).join('').slice(0, 32);
+}
+
+/** Affiche la commande a lancer, jeton compris, pour qu'elle soit copiable. */
+function rappelerCommande(jeton, port) {
+    const el = document.getElementById('xposter-commande');
+    if (!el) return;
+    el.textContent = jeton
+        ? `node tools/xposter-server.js --token ${jeton} --port ${port}`
+        : '— génère un jeton pour obtenir la commande';
+}
+
+/** Retour visuel bref sur un bouton, sans bibliotheque ni toast. */
+function confirmer(bouton, texte) {
+    const avant = bouton.textContent;
+    bouton.textContent = texte;
+    setTimeout(() => { bouton.textContent = avant; }, 1400);
+}
+
+document.getElementById('xposter-generer').addEventListener('click', function () {
+    const jeton = genererJeton();
+    const champ = document.getElementById('xposter-token');
+    champ.value = jeton;
+    chrome.storage.sync.set({ xposterToken: jeton });
+    rappelerCommande(jeton, document.getElementById('xposter-port').value);
+    confirmer(this, 'Généré');
+});
+
+document.getElementById('xposter-copier').addEventListener('click', async function () {
+    const jeton = document.getElementById('xposter-token').value;
+    if (!jeton) { confirmer(this, 'Vide'); return; }
+    try {
+        await navigator.clipboard.writeText(jeton);
+        confirmer(this, 'Copié');
+    } catch {
+        // Presse-papiers refuse : on selectionne, l'utilisateur fait Ctrl+C.
+        document.getElementById('xposter-token').select();
+        confirmer(this, 'Ctrl+C');
+    }
+});
+
+document.getElementById('xposter-port').addEventListener('input', function (e) {
+    rappelerCommande(document.getElementById('xposter-token').value, e.target.value);
+});
+
 // Le service worker ecoute chrome.storage : il ouvre ou ferme le pont tout
 // seul quand ces valeurs changent, sans qu on ait a le prevenir.
 document.getElementById('enable-xposter').addEventListener('change', function (e) {
@@ -186,10 +244,6 @@ document.getElementById('xposter-port').addEventListener('change', function (e) 
         return;
     }
     chrome.storage.sync.set({ xposterPort: port });
-});
-
-document.getElementById('xposter-token').addEventListener('change', function (e) {
-    chrome.storage.sync.set({ xposterToken: e.target.value.trim() });
 });
 
 // Écouteurs d'événements

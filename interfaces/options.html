@@ -304,7 +304,18 @@
         </div>
         <div class="setting-item">
           <span class="setting-label">Jeton</span>
-          <input type="password" id="xposter-token" name="xposter-token" placeholder="obligatoire" style="width:220px">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="xposter-token" name="xposter-token" placeholder="obligatoire"
+                   readonly spellcheck="false"
+                   style="width:230px;font-family:Consolas,Menlo,monospace;font-size:12px">
+            <button type="button" class="btn btn-secondary" id="xposter-generer" title="Générer un nouveau jeton">Générer</button>
+            <button type="button" class="btn btn-primary" id="xposter-copier" title="Copier dans le presse-papiers">Copier</button>
+          </div>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label" style="font-size:12px;opacity:.7">
+            Lance le pont avec&nbsp;: <code id="xposter-commande" style="user-select:all"></code>
+          </span>
         </div>
       </div>
     </div>
