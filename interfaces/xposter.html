@@ -27,6 +27,17 @@
             <button class="xp-btn" id="xp-capturer" title="Capturer l'onglet X visible">Capturer l'écran</button>
         </div>
 
+        <!-- Le cliche reste ici : ouvrir une image dans un onglet fait perdre
+             de vue la file qu'on etait venu consulter. -->
+        <figure class="xp-cliche" id="xp-cliche" hidden>
+            <img id="xp-cliche-img" alt="Capture du composeur X">
+            <figcaption>
+                <span id="xp-cliche-quand"></span>
+                <a id="xp-cliche-lien" href="#" target="_blank" rel="noreferrer">Ouvrir en grand</a>
+                <button class="xp-btn" id="xp-cliche-fermer">Fermer</button>
+            </figcaption>
+        </figure>
+
         <div class="stats-summary">
             <div class="stat-box">
                 <div class="stat-box-value" id="xp-n-attente">0</div>

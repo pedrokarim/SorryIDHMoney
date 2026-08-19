@@ -18,7 +18,7 @@ import "./scripts/avb/avb-manager.js";
  * eteint.
  */
 import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
-import { surAlarme, annuler as annulerPublication } from "./scripts/xposter-queue.js";
+import { surAlarme, annuler as annulerPublication, capturerComposeur } from "./scripts/xposter-queue.js";
 
 installerVeille();
 sonder();
@@ -330,6 +330,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log("Term added to cache:", message.term);
       }
       return false;
+    case "xposterCapturer":
+      // Une page de l extension ne peut pas photographier le composeur
+      // elle-meme : elle est l onglet actif au moment ou elle demande.
+      capturerComposeur()
+        .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
+      return true;
     case "xposterAnnuler":
       // Vient de l ecran dedie, pas d une page web : les content scripts ne
       // connaissent pas cette action.

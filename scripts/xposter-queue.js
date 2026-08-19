@@ -97,6 +97,36 @@ async function ongletComposeur() {
 }
 
 /**
+ * Photographie le composeur.
+ *
+ * `captureVisibleTab` ne sait photographier que l'onglet actif d'une fenetre.
+ * Depuis le service worker c'est le plus souvent le bon ; depuis une page de
+ * l'extension, c'est cette page elle-meme — le bouton se prenait en photo.
+ * On designe donc l'onglet, et on le remet au premier plan de sa fenetre le
+ * temps du cliche.
+ *
+ * On n'ouvre pas de composeur s'il n'y en a pas : demander a voir n'est pas
+ * demander a ecrire.
+ */
+export async function capturerComposeur() {
+  const onglets = await chrome.tabs.query({
+    url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'],
+  });
+  if (!onglets.length) throw new Error('aucun composeur ouvert');
+
+  const onglet = onglets[0];
+  if (!onglet.active) {
+    await chrome.tabs.update(onglet.id, { active: true });
+    // Le passage au premier plan n'est pas instantane : sans ce delai, le
+    // cliche montre encore l'onglet precedent.
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  const dataUrl = await chrome.tabs.captureVisibleTab(onglet.windowId, { format: 'png' });
+  return { dataUrl, url: onglet.url };
+}
+
+/**
  * Execute une publication : ouvre le composeur et lui passe la charge.
  *
  * Le clic final est soumis a une autorisation globale, decochee par defaut.

@@ -89,7 +89,7 @@ function remplir(conteneur, entrees, vide) {
   entrees.forEach((e) => conteneur.appendChild(carte(e)));
 }
 
-function rendre(cfg, local) {
+function rendre(cfg, local, composeurs) {
   const contact = local.xposterDernierContact || 0;
   const vivant = Date.now() - contact < DELAI_PERTE;
 
@@ -111,7 +111,16 @@ function rendre(cfg, local) {
       : 'jamais connecté — lance le serveur local.';
   }
 
-  el('xp-capturer').disabled = !vivant;
+  /*
+   * La capture ne passe pas par le pont : c'est le navigateur qui photographie
+   * son propre onglet. Ce qu'il lui faut, c'est un composeur ouvert — la lier
+   * a l'etat du serveur local grisait un bouton parfaitement utilisable.
+   */
+  const bouton = el('xp-capturer');
+  bouton.disabled = composeurs.length === 0;
+  bouton.title = composeurs.length
+    ? "Photographier le composeur X"
+    : "Aucun composeur X ouvert";
 
   const file = local.xposterFile || [];
   const attente = file.filter((p) => p.etat === 'en attente').sort((a, b) => a.quand - b.quand);
@@ -135,7 +144,12 @@ function rafraichir() {
   chrome.storage.sync.get(
     { enableXPoster: false, xposterToken: '', xposterPort: 8787, xposterAutoriserPublication: false },
     (cfg) => {
-      chrome.storage.local.get({ xposterDernierContact: 0, xposterFile: [] }, (local) => rendre(cfg, local));
+      chrome.storage.local.get({ xposterDernierContact: 0, xposterFile: [] }, async (local) => {
+        const composeurs = await chrome.tabs.query({
+          url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'],
+        });
+        rendre(cfg, local, composeurs);
+      });
     }
   );
 }
@@ -145,16 +159,34 @@ el('xp-capturer').addEventListener('click', async function () {
   const avant = this.textContent;
   this.textContent = 'Capture…';
   try {
-    const image = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-    // Pas d'API de telechargement declaree : on ouvre la capture dans un
-    // onglet, l'enregistrement reste a la main de qui regarde.
-    await chrome.tabs.create({ url: image });
-    this.textContent = 'Ouverte';
+    /*
+     * C'est le service worker qui photographie, pas cette page : au moment du
+     * clic, l'onglet actif est celui-ci. Lui seul peut designer le composeur
+     * et le ramener au premier plan.
+     */
+    const r = await chrome.runtime.sendMessage({ action: 'xposterCapturer' });
+    if (!r || !r.ok) throw new Error(r && r.erreur ? r.erreur : 'capture refusée');
+
+    el('xp-cliche-img').src = r.dataUrl;
+    el('xp-cliche-quand').textContent = new Date().toLocaleTimeString('fr-FR');
+    // Un onglet ne peut pas naviguer vers une data: URL — le lien passe donc
+    // par un blob, qui lui s'ouvre.
+    const blob = await (await fetch(r.dataUrl)).blob();
+    const lien = el('xp-cliche-lien');
+    if (lien.dataset.url) URL.revokeObjectURL(lien.dataset.url);
+    lien.href = lien.dataset.url = URL.createObjectURL(blob);
+    el('xp-cliche').hidden = false;
+    this.textContent = avant;
   } catch (err) {
     console.error('[XPoster]', err);
     this.textContent = 'Échec';
+    setTimeout(() => { this.textContent = avant; }, 1600);
   }
-  setTimeout(() => { this.textContent = avant; this.disabled = false; }, 1600);
+  this.disabled = false;
+});
+
+el('xp-cliche-fermer').addEventListener('click', () => {
+  el('xp-cliche').hidden = true;
 });
 
 rafraichir();

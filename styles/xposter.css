@@ -60,3 +60,30 @@
 
 .xp-vide { font-size: 12px; opacity: .55; padding: 10px 2px; }
 .xp-note { font-size: 11px; opacity: .55; margin-top: 18px; line-height: 1.5; }
+
+/* Le cliche est une preuve, pas une illustration : il occupe la largeur
+   disponible et se laisse fermer des qu'il a servi. */
+.xp-cliche {
+  margin: 0 0 14px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.xp-cliche img {
+  display: block;
+  width: 100%;
+  border-bottom: 1px solid #eee;
+}
+
+.xp-cliche figcaption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  font-size: 11px;
+  color: #777;
+}
+
+.xp-cliche figcaption span { flex: 1; }

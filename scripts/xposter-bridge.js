@@ -18,7 +18,7 @@
  *      arbitraire.
  */
 
-import { programmer, annuler, lister, executer } from './xposter-queue.js';
+import { programmer, annuler, lister, executer, capturerComposeur } from './xposter-queue.js';
 
 const LOG = '[XPoster]';
 const ALARME_VEILLE = 'xposter:veille';
@@ -46,10 +46,7 @@ const ACTIONS = {
    * deduire d un rapport : un remplissage peut se dire reussi et avoir
    * produit quelque chose de tordu.
    */
-  capturer: async () => {
-    const image = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
-    return { dataUrl: image };
-  },
+  capturer: () => capturerComposeur(),
 
   /** Compose tout de suite, sans passer par la file. */
   maintenant: async (charge) =>
