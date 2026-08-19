@@ -116,6 +116,11 @@ function escapeHtml(s) {
   };
 
   function rendre(cfg, local) {
+    // Le lien vers l ecran dedie suit le meme sort que le panneau : inutile
+    // de proposer une page qui ne dira rien.
+    const lien = document.getElementById('nav-xposter');
+    if (lien) lien.style.display = cfg.enableXPoster ? '' : 'none';
+
     if (!cfg.enableXPoster) { panneau.style.display = 'none'; return; }
     panneau.style.display = '';
 

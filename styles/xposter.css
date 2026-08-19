@@ -1,0 +1,62 @@
+/* Ecran dedie au module de publication X.
+   Complete twitch-stats.css, dont on reprend le cadre et les compteurs. */
+
+.xp-pont {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(127, 127, 127, .08);
+  margin-bottom: 14px;
+}
+.xp-pastille {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: #b0b6bd; flex: 0 0 auto;
+}
+.xp-pastille.vivant { background: #3fb950; box-shadow: 0 0 0 4px rgba(63,185,80,.18); }
+.xp-pastille.mort   { background: #e5534b; box-shadow: 0 0 0 4px rgba(229,83,75,.16); }
+
+.xp-pont-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.xp-pont-texte strong { font-size: 13.5px; }
+.xp-pont-texte span   { font-size: 11.5px; opacity: .7; }
+
+.xp-btn {
+  border: 1px solid rgba(127,127,127,.35);
+  background: transparent; color: inherit;
+  border-radius: 8px; padding: 6px 11px;
+  font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.xp-btn:hover { background: rgba(127,127,127,.12); }
+.xp-btn:disabled { opacity: .5; cursor: default; }
+
+.xp-titre { font-size: 13px; margin: 18px 0 8px; opacity: .8; font-weight: 600; }
+
+.xp-liste { display: flex; flex-direction: column; gap: 8px; }
+
+.xp-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; border-radius: 9px;
+  background: rgba(127,127,127,.07);
+}
+.xp-item .xp-corps { flex: 1; min-width: 0; }
+.xp-item .xp-texte {
+  font-size: 12.5px; line-height: 1.45;
+  /* Le texte complet tient rarement : deux lignes suffisent a reconnaitre
+     de quelle publication il s'agit. */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.xp-item .xp-meta { font-size: 11px; opacity: .62; margin-top: 4px; }
+.xp-item .xp-erreur { font-size: 11px; color: #e5534b; margin-top: 4px; }
+
+.xp-etat {
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px;
+  border-radius: 999px; white-space: nowrap; flex: 0 0 auto;
+}
+.xp-etat.attente { background: rgba(255,152,0,.14); color: #f57c00; }
+.xp-etat.ok      { background: rgba(76,175,80,.14); color: #3d8b40; }
+.xp-etat.err     { background: rgba(244,67,54,.14); color: #d32f2f; }
+
+.xp-vide { font-size: 12px; opacity: .55; padding: 10px 2px; }
+.xp-note { font-size: 11px; opacity: .55; margin-top: 18px; line-height: 1.5; }

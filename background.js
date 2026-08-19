@@ -18,7 +18,7 @@ import "./scripts/avb/avb-manager.js";
  * eteint.
  */
 import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
-import { surAlarme } from "./scripts/xposter-queue.js";
+import { surAlarme, annuler as annulerPublication } from "./scripts/xposter-queue.js";
 
 installerVeille();
 sonder();
@@ -330,6 +330,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.log("Term added to cache:", message.term);
       }
       return false;
+    case "xposterAnnuler":
+      // Vient de l ecran dedie, pas d une page web : les content scripts ne
+      // connaissent pas cette action.
+      annulerPublication(message.id).then(() => sendResponse({ ok: true }));
+      return true;
     case "openStatsPopup":
       chrome.windows.create({
         url: chrome.runtime.getURL("interfaces/twitch-stats.html"),
