@@ -19,6 +19,7 @@
  *   node tools/xposter-cli.js programmer --fichier post.json --token X [--port 8787]
  *   node tools/xposter-cli.js maintenant --fichier post.json --token X
  *   node tools/xposter-cli.js lister --token X
+ *   node tools/xposter-cli.js capturer --sortie ecran.png --token X
  *   node tools/xposter-cli.js annuler --id p123 --token X
  */
 
@@ -35,7 +36,7 @@ const PORT = lire('port', '8787');
 const TOKEN = lire('token', process.env.XPOSTER_TOKEN || '');
 const BASE = `http://127.0.0.1:${PORT}`;
 
-if (!action) { console.error('Action manquante : programmer | maintenant | lister | annuler'); process.exit(1); }
+if (!action) { console.error('Action manquante : programmer | maintenant | lister | annuler | capturer'); process.exit(1); }
 if (!TOKEN) { console.error('Jeton manquant : --token, ou XPOSTER_TOKEN.'); process.exit(1); }
 
 const TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
@@ -93,6 +94,17 @@ const appeler = async (chemin, options = {}) =>
     const r = await appeler(`/resultat?id=${id}`);
     if (r.status === 200) {
       const res = await r.json();
+
+      // Une capture ne s affiche pas dans un terminal : on l ecrit sur disque
+      // et on annonce le chemin plutot que de deverser 2 Mo de base64.
+      if (res.ok && action === 'capturer' && res.resultat?.dataUrl) {
+        const sortie = lire('sortie', 'capture.png');
+        const base64 = res.resultat.dataUrl.split(',')[1];
+        fs.writeFileSync(sortie, Buffer.from(base64, 'base64'));
+        console.log('capture ecrite :', sortie);
+        process.exit(0);
+      }
+
       console.log(res.ok ? 'OK' : 'ECHEC', JSON.stringify(res.ok ? res.resultat : res.erreur, null, 2));
       process.exit(res.ok ? 0 : 1);
     }

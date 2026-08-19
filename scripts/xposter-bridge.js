@@ -39,6 +39,18 @@ const ACTIONS = {
   programmer: async (charge) => programmer(charge),
   annuler: async (charge) => annuler(charge.id),
   lister: async () => lister(),
+  /**
+   * Rend une capture de l onglet visible.
+   *
+   * C est ce qui permet de constater l etat reel du composeur au lieu de le
+   * deduire d un rapport : un remplissage peut se dire reussi et avoir
+   * produit quelque chose de tordu.
+   */
+  capturer: async () => {
+    const image = await chrome.tabs.captureVisibleTab(null, { format: 'png' });
+    return { dataUrl: image };
+  },
+
   /** Compose tout de suite, sans passer par la file. */
   maintenant: async (charge) =>
     executer({
@@ -76,6 +88,10 @@ export async function sonder() {
     });
     if (!rep.ok) return;
     ordres = await rep.json();
+    // Trace du dernier echange reussi : c'est elle, et rien d'autre, qui
+    // permet a la popup de dire « connecte ». Un booleen mentirait des que le
+    // serveur s'arrete sans prevenir.
+    await chrome.storage.local.set({ xposterDernierContact: Date.now() });
   } catch {
     // Serveur eteint : c'est le cas normal la plupart du temps, on se tait.
     return;

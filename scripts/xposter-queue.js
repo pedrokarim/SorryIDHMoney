@@ -153,5 +153,14 @@ export async function surAlarme(alarme) {
   }
 
   publication.execute = Date.now();
-  await ecrireFile(file);
+
+  // On garde les vingt dernieres executions et tout ce qui attend encore :
+  // sans purge, la file grossit indefiniment dans le stockage local.
+  const attente = file.filter((p) => p.etat === 'en attente');
+  const finies = file
+    .filter((p) => p.etat !== 'en attente')
+    .sort((a, b) => (b.execute || 0) - (a.execute || 0))
+    .slice(0, 20);
+
+  await ecrireFile([...attente, ...finies]);
 }

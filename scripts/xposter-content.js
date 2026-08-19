@@ -67,33 +67,72 @@ async function attendre(cles, delai = 8000) {
   return null;
 }
 
+/** Vide le composeur avant d ecrire, pour ne jamais ajouter a du residu. */
+async function viderComposeur(zone) {
+  zone.focus();
+  document.execCommand('selectAll', false, null);
+  document.execCommand('delete', false, null);
+  await dors(120);
+}
+
+/** Texte reellement present dans le composeur, sauts de ligne normalises. */
+function texteActuel(zone) {
+  return (zone.innerText || zone.textContent || '').trim();
+}
+
 /**
  * Ecrit le texte dans le composeur.
  *
- * `insertText` passe par le meme chemin qu'une frappe clavier : c'est la seule
- * facon d'obtenir que l'editeur mette a jour son etat interne et active le
- * bouton Poster.
+ * **Pourquoi un collage et non `insertText`.** L editeur de X detecte les
+ * liens a mesure qu on ecrit. Avec `insertText`, chaque caractere ajoute
+ * relance cette detection sur un lien encore incomplet : le premier essai a
+ * produit `cma.ascencia.re` repete sept fois et avait perdu les sauts de
+ * ligne. Un evenement de collage porte le texte d un bloc, la detection ne
+ * s execute qu une fois, sur un lien entier.
+ *
+ * Et on **verifie** : un composeur qui contient autre chose que ce qu on a
+ * demande doit se voir dans le rapport, pas partir en publication.
  */
 async function ecrireTexte(texte) {
   const zone = await attendre('zoneTexte');
   if (!zone) throw new Error('composeur introuvable');
 
-  zone.focus();
-  await dors(120);
+  await viderComposeur(zone);
 
-  const ok = document.execCommand('insertText', false, texte);
-  if (!ok) {
-    // Repli : evenement de collage synthetique, accepte par la plupart des
-    // editeurs riches quand `execCommand` est refuse.
+  const coller = () => {
     const dt = new DataTransfer();
     dt.setData('text/plain', texte);
-    zone.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-  }
+    zone.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })
+    );
+  };
 
-  await dors(250);
-  const ecrit = (zone.textContent || '').trim().length > 0;
-  if (!ecrit) throw new Error('le texte n a pas ete pris en compte');
-  return true;
+  coller();
+  await dors(400);
+
+  // Comparaison indulgente sur les espaces : l editeur normalise, et on ne
+  // veut pas echouer sur une nuance d espacement.
+  const attendu = texte.replace(new RegExp("\\s+", 'g'), ' ').trim();
+  const obtenu = texteActuel(zone).replace(new RegExp("\\s+", 'g'), ' ').trim();
+
+  if (obtenu === attendu) return { ok: true, methode: 'collage' };
+
+  // Repli : certains navigateurs refusent le ClipboardEvent synthetique.
+  console.warn(LOG, 'collage incomplet, repli sur insertText');
+  await viderComposeur(zone);
+  document.execCommand('insertText', false, texte);
+  await dors(400);
+
+  const obtenu2 = texteActuel(zone).replace(new RegExp("\\s+", 'g'), ' ').trim();
+  if (obtenu2 === attendu) return { ok: true, methode: 'insertText' };
+
+  // On ne laisse pas un composeur a moitie rempli sans le dire.
+  return {
+    ok: false,
+    methode: 'aucune',
+    attendu: attendu.slice(0, 120),
+    obtenu: obtenu2.slice(0, 120),
+  };
 }
 
 /** Transforme une image encodee en `File`, seul type accepte par le champ. */
@@ -176,7 +215,13 @@ async function publier() {
 async function composer({ texte, images, alts, publier: doitPublier }) {
   const rapport = { texte: false, images: 0, alts: 0, publie: false };
 
-  rapport.texte = await ecrireTexte(texte);
+  const ecriture = await ecrireTexte(texte);
+  rapport.texte = ecriture.ok;
+  rapport.ecriture = ecriture;
+
+  // Sans texte conforme, on ne joint rien et on ne publie surtout pas : mieux
+  // vaut un composeur vide qu une publication de travers.
+  if (!ecriture.ok) return rapport;
   rapport.images = await joindreImages(images);
   rapport.alts = await ecrireAlts(alts);
 
