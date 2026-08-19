@@ -102,9 +102,31 @@ export async function lister() {
  */
 async function ongletComposeur() {
   const existants = await chrome.tabs.query({ url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'] });
-  if (existants.length) {
-    await chrome.tabs.update(existants[0].id, { active: true });
-    return existants[0];
+
+  /*
+   * On ne reutilise qu'un composeur vide.
+   *
+   * Plusieurs publications rapprochees et laissees a valider a la main
+   * cohabitent : la deuxieme trouvait l'onglet de la premiere, encore en
+   * attente d'un clic, et la composition commence par vider la zone. Le
+   * premier post disparaissait — texte, image et alternative — sans que rien
+   * ne le signale.
+   *
+   * Un onglet qui ne repond pas est compte comme occupe : ne pas savoir n'est
+   * pas une raison d'ecrire dedans.
+   */
+  for (const onglet of existants) {
+    let libre = false;
+    try {
+      const etat = await chrome.tabs.sendMessage(onglet.id, { action: 'xposterEtat' });
+      libre = etat?.vide === true;
+    } catch {
+      libre = false;
+    }
+    if (libre) {
+      await chrome.tabs.update(onglet.id, { active: true });
+      return onglet;
+    }
   }
 
   const onglet = await chrome.tabs.create({ url: 'https://x.com/compose/post', active: true });

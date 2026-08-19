@@ -236,6 +236,20 @@ async function composer({ texte, images, alts, publier: doitPublier }) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  /*
+   * « Ce composeur est-il libre ? »
+   *
+   * La composition commence par vider la zone, pour ne jamais ajouter a du
+   * residu. Ecrire dans un onglet qui attend encore un clic effacerait donc
+   * ce qui s'y trouve — texte, image et texte alternatif compris. Avant de
+   * reutiliser un onglet, on lui demande s'il est vide.
+   */
+  if (message?.action === 'xposterEtat') {
+    const zone = trouver('zoneTexte');
+    sendResponse({ ok: true, present: !!zone, vide: !zone || texteActuel(zone) === '' });
+    return true;
+  }
+
   if (message?.action !== 'xposterComposer') return;
 
   composer(message.charge)
