@@ -213,7 +213,12 @@ async function publier() {
 
 /** Enchainement complet. `publier` est toujours un choix conscient. */
 async function composer({ texte, images, alts, publier: doitPublier }) {
-  const rapport = { texte: false, images: 0, alts: 0, publie: false };
+  // Ce que le script a REELLEMENT recu : sans ca, un rapport a zero ne dit
+  // pas si la charge etait vide ou si la jonction a echoue.
+  const rapport = {
+    texte: false, images: 0, alts: 0, publie: false,
+    recu: { images: images?.length ?? 0, alts: alts?.length ?? 0, texte: (texte || "").length },
+  };
 
   const ecriture = await ecrireTexte(texte);
   rapport.texte = ecriture.ok;
