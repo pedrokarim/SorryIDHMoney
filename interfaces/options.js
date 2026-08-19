@@ -119,8 +119,16 @@ document.addEventListener('DOMContentLoaded', function () {
         enableAvbAgechecker: true,
         enableAvbAgego: true,
         enableAvbAgeverif: true,
-        enableAvbVeriff: true
+        enableAvbVeriff: true,
+        enableXPoster: false,
+        xposterAutoriserPublication: false,
+        xposterPort: 8787,
+        xposterToken: ''
     }, function (items) {
+        document.getElementById('enable-xposter').checked = items.enableXPoster;
+        document.getElementById('xposter-autoriser-publication').checked = items.xposterAutoriserPublication;
+        document.getElementById('xposter-port').value = items.xposterPort;
+        document.getElementById('xposter-token').value = items.xposterToken;
         document.getElementById('background-color').value = items.backgroundColor;
         document.getElementById('theme').value = items.theme;
         document.getElementById('censure').checked = items.censure;
@@ -156,6 +164,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
         updateThemePreview(items.theme);
     });
+});
+
+// ── Publication X ────────────────────────────────────────────────────────
+// Le service worker ecoute chrome.storage : il ouvre ou ferme le pont tout
+// seul quand ces valeurs changent, sans qu on ait a le prevenir.
+document.getElementById('enable-xposter').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableXPoster: e.target.checked });
+});
+
+document.getElementById('xposter-autoriser-publication').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ xposterAutoriserPublication: e.target.checked });
+});
+
+document.getElementById('xposter-port').addEventListener('change', function (e) {
+    const port = parseInt(e.target.value, 10);
+    // Un port hors plage couperait le pont sans rien dire : on refuse et on
+    // remet la valeur precedente sous les yeux.
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+        chrome.storage.sync.get({ xposterPort: 8787 }, (i) => { e.target.value = i.xposterPort; });
+        return;
+    }
+    chrome.storage.sync.set({ xposterPort: port });
+});
+
+document.getElementById('xposter-token').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ xposterToken: e.target.value.trim() });
 });
 
 // Écouteurs d'événements

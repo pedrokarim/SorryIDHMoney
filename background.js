@@ -9,6 +9,37 @@ import {
 // dynamiques + injection MAIN world bsky + ecoute des toggles). Voir scripts/avb/.
 import "./scripts/avb/avb-manager.js";
 
+/*
+ * Module « Publication X » — coupe par defaut.
+ *
+ * Il n'ouvre rien tant que la case n'est pas cochee ET qu'un jeton n'est pas
+ * renseigne dans les options. La file d'attente vit dans l'extension pour
+ * qu'une publication programmee parte meme si l'outil qui l'a deposee est
+ * eteint.
+ */
+import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
+import { surAlarme } from "./scripts/xposter-queue.js";
+
+installerVeille();
+sonder();
+
+chrome.alarms.onAlarm.addListener((alarme) => {
+  // L'alarme de veille rallume le worker et lui fait demander s'il y a du
+  // travail ; les autres alarmes sont des publications programmees.
+  if (estVeille(alarme)) {
+    sonder();
+    return;
+  }
+  surAlarme(alarme);
+});
+
+chrome.storage.onChanged.addListener((changes, zone) => {
+  if (zone !== "sync") return;
+  if ("enableXPoster" in changes || "xposterPort" in changes || "xposterToken" in changes) {
+    sonder();
+  }
+});
+
 // Cache mémoire pour éviter de spammer l'API AniList (durée de vie = durée du service worker)
 const apiCache = new Map();
 const API_CACHE_TTL = 10 * 60 * 1000; // 10 minutes en mémoire

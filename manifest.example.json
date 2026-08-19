@@ -13,8 +13,17 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting", "declarativeNetRequest"],
-  "host_permissions": ["<all_urls>"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "declarativeNetRequest",
+    "alarms",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "options_page": "interfaces/options.html",
   "action": {
     "default_popup": "interfaces/popup.html",
@@ -27,50 +36,91 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["scripts/youtube-shorts-autoscroll.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "scripts/youtube-shorts-autoscroll.js"
+      ],
       "type": "module",
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
-      "js": ["scripts/youtube-smooth-playback.js"],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://m.youtube.com/*"
+      ],
+      "js": [
+        "scripts/youtube-smooth-playback.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["scripts/global-content.js"]
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "scripts/global-content.js"
+      ]
     },
     {
-      "matches": ["https://mavanimes.cc/*", "https://mavanimes.ws/*"],
-      "js": ["scripts/mavanimes-content.js"],
+      "matches": [
+        "https://mavanimes.cc/*",
+        "https://mavanimes.ws/*"
+      ],
+      "js": [
+        "scripts/mavanimes-content.js"
+      ],
       "type": "module"
     },
     {
-      "matches": ["https://v5.voiranime.com/*", "https://v6.voiranime.com/*"],
-      "js": ["scripts/voiranime-content.js"],
+      "matches": [
+        "https://v5.voiranime.com/*",
+        "https://v6.voiranime.com/*"
+      ],
+      "js": [
+        "scripts/voiranime-content.js"
+      ],
       "type": "module"
     },
     {
-      "matches": ["https://www.crunchyroll.com/*"],
-      "js": ["scripts/crunchyroll-content.js"],
+      "matches": [
+        "https://www.crunchyroll.com/*"
+      ],
+      "js": [
+        "scripts/crunchyroll-content.js"
+      ],
       "type": "module",
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.adkami.com/*"],
-      "js": ["scripts/adkami-content.js"],
+      "matches": [
+        "https://www.adkami.com/*"
+      ],
+      "js": [
+        "scripts/adkami-content.js"
+      ],
       "type": "module"
     },
     {
-      "matches": ["https://animationdigitalnetwork.com/*"],
-      "js": ["scripts/adn-content.js"],
+      "matches": [
+        "https://animationdigitalnetwork.com/*"
+      ],
+      "js": [
+        "scripts/adn-content.js"
+      ],
       "type": "module",
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://gum-gum-streaming.com/*"],
-      "js": ["scripts/gumgum-content.js"],
+      "matches": [
+        "https://gum-gum-streaming.com/*"
+      ],
+      "js": [
+        "scripts/gumgum-content.js"
+      ],
       "type": "module"
     },
     {
@@ -79,34 +129,70 @@
         "https://anilist.co/*",
         "https://www.nautiljon.com/*"
       ],
-      "js": ["scripts/anime-switcher-content.js"],
+      "js": [
+        "scripts/anime-switcher-content.js"
+      ],
       "type": "module"
     },
     {
-      "matches": ["https://www.twitch.tv/*"],
-      "js": ["scripts/twitch-rewards-content.js"],
+      "matches": [
+        "https://www.twitch.tv/*"
+      ],
+      "js": [
+        "scripts/twitch-rewards-content.js"
+      ],
       "type": "module"
     },
     {
-      "matches": ["*://*.reddit.com/*"],
-      "js": ["scripts/avb/reddit-avb.js"],
+      "matches": [
+        "*://*.reddit.com/*"
+      ],
+      "js": [
+        "scripts/avb/reddit-avb.js"
+      ],
       "run_at": "document_start"
     },
     {
-      "matches": ["*://*.aliexpress.com/*"],
-      "js": ["scripts/avb/aliexpress-avb.js"],
+      "matches": [
+        "*://*.aliexpress.com/*"
+      ],
+      "js": [
+        "scripts/avb/aliexpress-avb.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://x.com/*", "https://twitter.com/*"],
-      "js": ["scripts/avb/xcom-bridge.js"],
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "scripts/avb/xcom-bridge.js"
+      ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": [
+        "scripts/xposter-content.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["libs/*", "scripts/*", "styles/*", "interfaces/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "libs/*",
+        "scripts/*",
+        "styles/*",
+        "interfaces/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

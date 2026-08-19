@@ -118,3 +118,47 @@ Ajouter `"run_at": "document_idle"` pour les SPA React.
 - Les content scripts loguent avec le préfixe `[NomPlateforme]`
 - AniList est la source de vérité pour les données anime
 - Le bouton info (3ème, violet) occupe le même slot que le bouton "quitter édition" — il est caché en mode édition
+
+## Module « Publication X »
+
+Prépare, publie ou programme des publications sur x.com depuis un outil local.
+**Coupé par défaut** — il faut cocher la case *et* renseigner un jeton.
+
+### Pièces
+
+- `scripts/xposter-content.js` — remplit le composeur de x.com : texte, images,
+  textes alternatifs, et clic final si autorisé. Ne décide de rien.
+- `scripts/xposter-queue.js` — file d'attente et horloge (`chrome.alarms`).
+  La file vit dans l'extension pour qu'une publication programmée parte même
+  si l'outil qui l'a déposée est éteint.
+- `scripts/xposter-bridge.js` — sonde le serveur local une fois par minute et
+  exécute les ordres reçus.
+- `tools/xposter-server.js` — le serveur local. Écoute sur `127.0.0.1`
+  uniquement, jeton obligatoire.
+- `tools/xposter-cli.js` — dépose un ordre depuis un fichier JSON.
+
+### Trois gardes
+
+1. Module décoché par défaut.
+2. Sans jeton renseigné, l'extension ne contacte même pas le serveur.
+3. Liste blanche d'actions (`ping`, `programmer`, `annuler`, `lister`,
+   `maintenant`) — jamais de code arbitraire.
+
+Et un quatrième, indépendant de ce qu'on envoie : **la publication automatique
+a sa propre case, décochée**. Un ordre peut réclamer `publier: true`, sans
+cette case l'extension prépare et laisse la main.
+
+### Pourquoi un sondage HTTP et pas un WebSocket
+
+En MV3 le service worker est arrêté dès qu'il n'a rien à faire : une connexion
+permanente ne tient pas. Une alarme le réveille chaque minute, il demande s'il
+y a du travail. Une minute d'attente n'a aucune importance pour programmer une
+publication, et ça évite d'implémenter le protocole WebSocket à la main dans un
+projet sans dépendances.
+
+### Ce que le module ne fait pas
+
+Il ne parle pas à l'API de X et ne connaît aucun identifiant : il pilote
+l'interface dans un onglet déjà connecté. C'est contraire aux règles
+d'automatisation de X — le mode « préparer », qui laisse le clic final à
+l'humain, est celui qui reste dans les clous.

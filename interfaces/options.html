@@ -277,7 +277,38 @@
         </div>
       </div>
     </div>
-  </div>
+  
+    <div class="settings-group" data-collapsed="true">
+      <div class="settings-group-header" data-toggle="xposter">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Publication X</span>
+      </div>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">Activer le module</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-xposter" name="enable-xposter">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Autoriser la publication automatique</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="xposter-autoriser-publication" name="xposter-autoriser-publication">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Port du pont local</span>
+          <input type="number" id="xposter-port" name="xposter-port" min="1024" max="65535" style="width:110px">
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Jeton</span>
+          <input type="password" id="xposter-token" name="xposter-token" placeholder="obligatoire" style="width:220px">
+        </div>
+      </div>
+    </div>
+</div>
 
   <script src="options.js"></script>
 </body>
