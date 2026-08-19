@@ -58,28 +58,37 @@ function releverDansLaPage(toursMax, maximum) {
         auteur: (lien.match(/^\/([^/]+)\//) || [])[1] || '',
         reponse: /En r[ée]ponse [àa]|Replying to/.test(brut),
         repost: /a reposté|reposted/i.test(brut),
-        medias: article.querySelectorAll('[data-testid="tweetPhoto"], video').length,
+        // Les testids de X bougent : on compte aussi les images servies par
+        // leur CDN media, qui est la chose la plus stable de cette page.
+        medias: new Set(
+          [
+            ...article.querySelectorAll('[data-testid="tweetPhoto"] img, [data-testid="tweetPhoto"] video'),
+            ...article.querySelectorAll('img[src*="/media/"], video'),
+          ].map((n) => n.getAttribute('src') || n.getAttribute('poster') || n)
+        ).size,
       });
     }
   };
 
   return (async () => {
     let stagne = 0;
-    let hauteur = 0;
 
     for (let tour = 0; tour < toursMax; tour++) {
+      const avant = vus.size;
       noter();
       if (maximum && vus.size >= maximum) break;
 
-      window.scrollBy(0, window.innerHeight * 0.9);
-      await new Promise((r) => setTimeout(r, 900));
+      window.scrollTo(0, document.documentElement.scrollHeight);
+      await new Promise((r) => setTimeout(r, 1100));
 
-      const h = document.documentElement.scrollHeight;
-      // Trois tours sans que la page grandisse : on est au bout, ou X a cesse
-      // de charger. Dans les deux cas, insister ne sert plus a rien.
-      stagne = h === hauteur ? stagne + 1 : 0;
-      hauteur = h;
-      if (stagne >= 3) break;
+      /*
+       * On compte les tours sans nouveau post, pas les tours sans que la page
+       * grandisse. La hauteur d'une liste virtualisee ne bouge pas forcement
+       * quand elle se remplit — s'y fier arretait le releve au bout de trois
+       * tours, sur les quatre posts deja affiches.
+       */
+      stagne = vus.size === avant ? stagne + 1 : 0;
+      if (stagne >= 4) break;
     }
 
     noter();
@@ -99,18 +108,24 @@ function releverDansLaPage(toursMax, maximum) {
 /**
  * Ouvre le profil, releve le fil, referme.
  *
- * L'onglet s'ouvre en arriere-plan : on lit ce que Karim a publie, ce n'est
- * pas une raison pour lui prendre son ecran. Il est referme a la fin, sauf
- * s'il etait deja ouvert — auquel cas il ne nous appartient pas.
+ * **L'onglet doit etre visible.** Premiere version, il s'ouvrait en arriere-
+ * plan pour ne pas voler l'ecran : Chrome gele les onglets caches, la liste
+ * virtualisee de X ne chargeait donc jamais la suite et le releve s'arretait
+ * sur les quatre posts du premier ecran, sans rien signaler d'anormal.
+ *
+ * On rend donc la main a l'onglet d'ou l'on vient une fois le releve fini, et
+ * on referme celui qu'on a ouvert. S'il etait deja ouvert, on le laisse : il
+ * ne nous appartient pas.
  */
 export async function recupererTweets(charge = {}) {
   const compte = (charge.compte || 'ascencia64').replace(/^@/, '');
   const maximum = charge.maximum || 0;
   const url = `https://x.com/${compte}`;
 
+  const [precedent] = await chrome.tabs.query({ active: true, currentWindow: true });
   const ouverts = await chrome.tabs.query({ url: [`https://x.com/${compte}`, `https://x.com/${compte}?*`] });
   const deja = ouverts.length > 0;
-  const onglet = deja ? ouverts[0] : await chrome.tabs.create({ url, active: false });
+  const onglet = deja ? ouverts[0] : await chrome.tabs.create({ url, active: true });
 
   try {
     if (!deja) {
@@ -148,6 +163,15 @@ export async function recupererTweets(charge = {}) {
         await chrome.tabs.remove(onglet.id);
       } catch {
         // Onglet deja ferme a la main : rien a reparer.
+      }
+      // On repose l'ecran la ou on l'avait pris.
+      if (precedent) {
+        try {
+          await chrome.tabs.update(precedent.id, { active: true });
+        } catch {
+          // L'onglet de depart a disparu entre-temps : tant pis, pas de quoi
+          // faire echouer un releve qui a reussi.
+        }
       }
     }
   }
