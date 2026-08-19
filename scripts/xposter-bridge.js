@@ -19,6 +19,7 @@
  */
 
 import { programmer, annuler, lister, executer, capturerComposeur } from './xposter-queue.js';
+import { recupererTweets } from './xposter-tweets.js';
 
 const LOG = '[XPoster]';
 const ALARME_VEILLE = 'xposter:veille';
@@ -47,6 +48,13 @@ const ACTIONS = {
    * produit quelque chose de tordu.
    */
   capturer: () => capturerComposeur(),
+
+  /*
+   * Relit le fil publie. Strictement en lecture : sans session ouverte, X ne
+   * montre que cinq posts puis un mur, et il devient impossible de savoir ce
+   * qui est deja parti.
+   */
+  tweets: (charge) => recupererTweets(charge),
 
   /** Compose tout de suite, sans passer par la file. */
   maintenant: async (charge) =>

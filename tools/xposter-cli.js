@@ -20,6 +20,7 @@
  *   node tools/xposter-cli.js maintenant --fichier post.json --token X
  *   node tools/xposter-cli.js lister --token X
  *   node tools/xposter-cli.js capturer --sortie ecran.png --token X
+ *   node tools/xposter-cli.js tweets --token X [--compte ascencia64] [--sortie fil.json]
  *   node tools/xposter-cli.js annuler --id p123 --token X
  */
 
@@ -36,7 +37,7 @@ const PORT = lire('port', '8787');
 const TOKEN = lire('token', process.env.XPOSTER_TOKEN || '');
 const BASE = `http://127.0.0.1:${PORT}`;
 
-if (!action) { console.error('Action manquante : programmer | maintenant | lister | annuler | capturer'); process.exit(1); }
+if (!action) { console.error('Action manquante : programmer | maintenant | lister | annuler | capturer | tweets'); process.exit(1); }
 if (!TOKEN) { console.error('Jeton manquant : --token, ou XPOSTER_TOKEN.'); process.exit(1); }
 
 const TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
@@ -82,6 +83,7 @@ const appeler = async (chemin, options = {}) =>
   let charge = {};
   if (action === 'programmer' || action === 'maintenant') charge = construireCharge();
   if (action === 'annuler') charge = { id: lire('id') };
+  if (action === 'tweets') charge = { compte: lire('compte'), maximum: parseInt(lire('maximum', '0'), 10) };
 
   const rep = await appeler('/ordre', { method: 'POST', body: JSON.stringify({ action, charge }) });
   const { id } = await rep.json();
@@ -102,6 +104,28 @@ const appeler = async (chemin, options = {}) =>
         const base64 = res.resultat.dataUrl.split(',')[1];
         fs.writeFileSync(sortie, Buffer.from(base64, 'base64'));
         console.log('capture ecrite :', sortie);
+        process.exit(0);
+      }
+
+      // Un fil complet fait plusieurs centaines de lignes : on l ecrit sur
+      // disque quand on nous donne un chemin, et on resume a l ecran.
+      if (res.ok && action === 'tweets') {
+        const fil = res.resultat;
+        const sortie = lire('sortie');
+        if (sortie) {
+          fs.writeFileSync(sortie, JSON.stringify(fil, null, 2));
+          console.log('fil ecrit :', sortie);
+        }
+        const alerte = fil.tronque ? ' (TRONQUE : mur de connexion, session absente ?)' : '';
+        console.log(`@${fil.compte} — ${fil.total} posts releves${alerte}`);
+        if (!sortie) {
+          for (const t of fil.tweets) {
+            const jour = (t.date || t.dateAffichee || '?').slice(0, 10);
+            const nature = t.reponse ? 'rep' : t.repost ? 'rt ' : '   ';
+            const debut = t.texte.split('\n')[0].slice(0, 60);
+            console.log(`  ${jour}  ${nature} ${String(t.medias).padStart(2)}img  ${JSON.stringify(debut)}`);
+          }
+        }
         process.exit(0);
       }
 
