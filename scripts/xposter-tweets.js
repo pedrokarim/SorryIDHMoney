@@ -142,25 +142,48 @@ export async function programmesChezX() {
     const [resultat] = await chrome.scripting.executeScript({
       target: { tabId: onglet.id },
       func: () => {
+        /*
+         * La liste s'affiche dans une fenetre posee sur le fil d'accueil.
+         *
+         * Interroger toute la page ramenait les posts du fil qui defile
+         * derriere — le premier essai a rendu cinq tweets d'autres comptes en
+         * les presentant comme des publications programmees. On se cantonne
+         * donc a la fenetre, et sans elle on ne rend rien plutot que n'importe
+         * quoi.
+         */
+        const fenetre =
+          document.querySelector('[aria-modal="true"]') ||
+          document.querySelector('[role="dialog"]');
+
+        if (!fenetre) {
+          return { entrees: [], vide: false, erreur: 'fenetre des publications programmees absente' };
+        }
+
+        const texteFenetre = fenetre.innerText || '';
         const entrees = [];
-        for (const article of document.querySelectorAll('article, [data-testid="tweet"]')) {
-          const brut = (article.innerText || '').trim();
+        for (const item of fenetre.querySelectorAll('article, [data-testid="tweet"]')) {
+          const brut = (item.innerText || '').trim();
           if (brut.length < 5) continue;
-          const texte = article.querySelector('[data-testid="tweetText"]');
+          const texte = item.querySelector('[data-testid="tweetText"]');
           entrees.push({
-            // La date d'envoi est annoncee en tete de chaque entree.
+            // Chaque entree annonce son heure d'envoi sur sa premiere ligne.
             annonce: (brut.match(/^[^\n]*/) || [''])[0],
             texte: texte ? texte.innerText : brut,
-            medias: article.querySelectorAll('img[src*="/media/"], video').length,
+            medias: item.querySelectorAll('img[src*="/media/"], video').length,
           });
         }
-        return { entrees, vide: /aren’t any|n’avez aucun|no scheduled|aucun/i.test(document.body.innerText) };
+
+        return {
+          entrees,
+          vide: /aren.t any|n.avez aucun|no scheduled|rien de programm/i.test(texteFenetre),
+          apercu: texteFenetre.slice(0, 300),
+        };
       },
     });
 
-    const { entrees, vide } = resultat.result;
+    const { entrees, vide, erreur, apercu } = resultat.result;
     console.log(LOG, entrees.length, 'post(s) programme(s) chez X');
-    return { total: entrees.length, vide, url: URL_PROGRAMMES, entrees };
+    return { total: entrees.length, vide, erreur, apercu, url: URL_PROGRAMMES, entrees };
   } catch (err) {
     // L'onglet reste ouvert meme en cas d'echec : c'est la page ou l'on
     // supprime, autant qu'elle soit deja sous la main pour regarder.
