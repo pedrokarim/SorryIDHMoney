@@ -14,6 +14,7 @@ const ETATS = {
   publie: ['ok', 'publiée'],
   echec: ['err', 'échec'],
   manquee: ['err', 'manquée'],
+  'confie a X': ['ok', 'programmée chez X'],
 };
 
 const el = (id) => document.getElementById(id);

@@ -78,7 +78,16 @@ export async function programmer(entree) {
     // Aucune alarme : l'echeance part chez X, tout de suite. Garder un reveil
     // en plus reposterait le meme contenu a l'heure dite.
     const rapport = await executer(publication);
-    publication.etat = rapport?.programme ? 'confie a X' : rapport?.ok ? 'prepare' : 'echec';
+    /*
+     * Le compte rendu du composeur est imbrique : `{ ok, rapport }`. On lisait
+     * `rapport.programme` au premier niveau, donc toujours `undefined` — la
+     * file affichait « preparee » pour des publications que X gardait bel et
+     * bien. Le seul degat etait un etat faux, mais c est precisement ce dont
+     * on se sert pour savoir quoi refaire.
+     */
+    publication.etat = rapport?.rapport?.programme
+      ? 'confie a X'
+      : rapport?.ok ? 'prepare' : 'echec';
     publication.rapport = rapport;
     publication.execute = Date.now();
     await ecrireFile(file);

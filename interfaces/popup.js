@@ -108,6 +108,7 @@ function escapeHtml(s) {
     publie: ['ok', 'publié'],
     echec: ['err', 'échec'],
     manquee: ['err', 'manquée'],
+    'confie a X': ['ok', 'chez X'],
   };
 
   const quand = (ms) => {
