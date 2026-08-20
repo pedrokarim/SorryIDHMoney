@@ -222,10 +222,19 @@ async function programmerChezX(quand, confirmer) {
    * dans le champ du mois ne se verrait qu'a la publication.
    */
   const decrire = (s) => {
-    const valeurs = Array.from(s.options).map((o) => o.value);
+    /*
+     * L'option vide de tete ne compte pas.
+     *
+     * X ouvre chaque liste par un choix sans valeur — le libelle du champ.
+     * Les comptes tombaient donc tous a un pres : treize mois, trente-deux
+     * jours, soixante et une minutes, et plus rien ne se reconnaissait.
+     */
+    const options = Array.from(s.options).filter((o) => o.value !== '' && o.value != null);
+    const valeurs = options.map((o) => o.value);
     const nombres = valeurs.map((v) => parseInt(v, 10)).filter((n) => !isNaN(n));
     return {
       select: s,
+      options,
       taille: valeurs.length,
       tousNombres: nombres.length === valeurs.length && valeurs.length > 0,
       min: nombres.length ? Math.min(...nombres) : null,
@@ -265,11 +274,13 @@ async function programmerChezX(quand, confirmer) {
   for (const [nom, forme, valeur] of attendus) {
     // Le mois peut valoir « 8 », « 08 » ou « August » selon la locale : on
     // cherche donc l'option, on ne devine pas sa valeur.
-    const options = Array.from(forme.select.options);
+    // `forme.options` exclut deja l'option vide, donc le rang d'un mois y est
+    // bien son numero moins un.
+    const options = forme.options;
     const cible =
       options.find((o) => parseInt(o.value, 10) === valeur) ||
       (nom === 'mois' ? options[valeur - 1] : null) ||
-      (nom === 'heure' && forme.taille === 12 ? options[(valeur % 12) || 12 - 1] : null);
+      (nom === 'heure' && forme.taille === 12 ? options[((valeur % 12) || 12) - 1] : null);
 
     if (!cible) return { ok: false, erreur: `valeur ${valeur} absente du champ ${nom}` };
     poser(forme.select, cible.value);
