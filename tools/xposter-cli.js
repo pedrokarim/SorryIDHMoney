@@ -71,7 +71,13 @@ function construireCharge() {
     throw new Error(`${images.length} image(s) mais ${alts.length} texte(s) alternatif(s)`);
   }
 
-  return { texte: spec.texte || '', images, alts, quand: spec.quand, publier: spec.publier === true };
+  // `programmation` : "extension" ou "x". Absent, le reglage global tranche.
+  return {
+    texte: spec.texte || '', images, alts,
+    quand: spec.quand,
+    programmation: spec.programmation,
+    publier: spec.publier === true,
+  };
 }
 
 const appeler = async (chemin, options = {}) =>

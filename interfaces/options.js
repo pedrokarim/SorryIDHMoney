@@ -123,8 +123,13 @@ document.addEventListener('DOMContentLoaded', function () {
         enableXPoster: false,
         xposterAutoriserPublication: false,
         xposterPort: 8787,
-        xposterToken: ''
+        xposterToken: '',
+        xposterModeProgrammation: 'extension',
+        xposterComptes: []
     }, function (items) {
+        document.getElementById('xposter-mode-programmation').value = items.xposterModeProgrammation;
+        comptes = items.xposterComptes || [];
+        dessinerComptes();
         document.getElementById('enable-xposter').checked = items.enableXPoster;
         document.getElementById('xposter-autoriser-publication').checked = items.xposterAutoriserPublication;
         document.getElementById('xposter-port').value = items.xposterPort;
@@ -397,4 +402,105 @@ for (const site of AVB_SUB_TOGGLES) {
 document.getElementById('enable-avb-xcom').addEventListener('change', reflectXcomIndicator);
 document.getElementById('enable-avb-xcom-indicator').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableAvbXcomIndicator: e.target.checked });
+});
+
+
+/* ── Publication X : mode de programmation et comptes autorisés ────────────
+ *
+ * Le garde-fou manquait, et ça s'est vu : une publication est partie du
+ * mauvais compte parce que le navigateur y était connecté. Piloter un
+ * navigateur, c'est publier depuis la session ouverte — rien d'autre ne le
+ * vérifiait.
+ *
+ * La liste stocke des **identifiants numériques** quand on peut les obtenir,
+ * et accepte les pseudos sinon. L'identifiant ne bouge pas quand un compte
+ * est renommé ; le pseudo, si. On garde le pseudo à côté pour l'affichage,
+ * parce que personne ne reconnaît un compte à quinze chiffres.
+ *
+ * Liste vide = aucun filtre, comme avant. On ne bloque pas quelqu'un qui n'a
+ * rien demandé, mais on le dit clairement sous le champ.
+ */
+let comptes = [];
+
+function enregistrerComptes() {
+    chrome.storage.sync.set({ xposterComptes: comptes });
+    dessinerComptes();
+}
+
+function dessinerComptes() {
+    const liste = document.getElementById('xposter-comptes');
+    const note = document.getElementById('xposter-comptes-note');
+    if (!liste) return;
+    liste.innerHTML = '';
+
+    comptes.forEach(function (compte, index) {
+        const ligne = document.createElement('div');
+        ligne.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
+
+        const texte = document.createElement('span');
+        texte.style.cssText = 'flex:1;font-family:Consolas,Menlo,monospace';
+        // textContent : ces valeurs viennent d'une saisie libre.
+        texte.textContent = compte.pseudo ? '@' + compte.pseudo + '  ·  ' + compte.id : compte.id;
+
+        const retirer = document.createElement('button');
+        retirer.type = 'button';
+        retirer.className = 'btn btn-secondary';
+        retirer.textContent = 'Retirer';
+        retirer.addEventListener('click', function () {
+            comptes.splice(index, 1);
+            enregistrerComptes();
+        });
+
+        ligne.appendChild(texte);
+        ligne.appendChild(retirer);
+        liste.appendChild(ligne);
+    });
+
+    note.textContent = comptes.length
+        ? comptes.length + ' compte(s) autorisé(s). Toute publication depuis un autre compte est refusée avant d\'écrire quoi que ce soit.'
+        : '⚠️ Liste vide : aucune vérification. La publication partira du compte connecté, quel qu\'il soit.';
+}
+
+function ajouterCompte(entree) {
+    const valeur = String(entree.id || '').replace(/^@/, '').trim();
+    if (!valeur) return;
+    if (comptes.some(function (c) { return c.id === valeur; })) return;
+    comptes.push({ id: valeur, pseudo: entree.pseudo || null });
+    enregistrerComptes();
+}
+
+const saisieCompte = document.getElementById('xposter-compte-saisie');
+
+document.getElementById('xposter-compte-ajouter').addEventListener('click', function () {
+    ajouterCompte({ id: saisieCompte.value });
+    saisieCompte.value = '';
+});
+
+saisieCompte.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('xposter-compte-ajouter').click(); }
+});
+
+document.getElementById('xposter-compte-detecter').addEventListener('click', async function () {
+    const note = document.getElementById('xposter-comptes-note');
+    this.disabled = true;
+    try {
+        const onglets = await chrome.tabs.query({ url: ['https://x.com/*', 'https://twitter.com/*'] });
+        if (!onglets.length) { note.textContent = 'Aucun onglet X ouvert — ouvre x.com puis réessaie.'; return; }
+
+        // On interroge chaque onglet : le premier qui répond fait foi, les
+        // autres peuvent être des pages où le script n'est pas encore en place.
+        for (const onglet of onglets) {
+            try {
+                const r = await chrome.tabs.sendMessage(onglet.id, { action: 'xposterCompte' });
+                if (r && r.id) { ajouterCompte({ id: r.id, pseudo: r.pseudo }); return; }
+            } catch (err) { /* onglet muet : on passe au suivant */ }
+        }
+        note.textContent = "Compte introuvable — la session X est-elle ouverte dans cet onglet ?";
+    } finally {
+        this.disabled = false;
+    }
+});
+
+document.getElementById('xposter-mode-programmation').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ xposterModeProgrammation: e.target.value });
 });

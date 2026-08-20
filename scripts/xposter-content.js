@@ -39,6 +39,11 @@ const SEL = {
     '[data-testid="tweetButtonInline"]',
     '[data-testid="tweetButton"]',
   ],
+  boutonHoraire: ['[data-testid="scheduleOption"]', 'button[aria-label*="chedule"]'],
+  confirmerHoraire: [
+    '[data-testid="scheduledConfirmationPrimaryAction"]',
+    '[data-testid="Confirmation_Dialog_Confirm"]',
+  ],
   boutonAlt: ['[data-testid="altTextButton"]', 'button[aria-label*="escription"]'],
   champAlt: ['[data-testid="altTextInput"]', 'textarea[aria-label*="escription"]'],
   validerAlt: ['[data-testid="Sheet"] [role="button"][data-testid="applyButton"]',
@@ -46,6 +51,34 @@ const SEL = {
 };
 
 const dors = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Quel compte est aux commandes de cette page.
+ *
+ * L'identifiant fait foi, pas le pseudo. Le cookie `twid` porte le numero du
+ * compte connecte : il ne bouge pas quand on renomme un compte, et aucune
+ * refonte de l'interface de X ne le deplace. Le pseudo, lui, se lit dans le
+ * DOM quand il est la — pratique pour l'affichage, mais il change et il peut
+ * disparaitre d'une version a l'autre.
+ *
+ * C'est cette distinction qui compte : on autorise des identifiants, on
+ * affiche des pseudos.
+ */
+function compteActif() {
+  const cookie = (document.cookie.match(/(?:^|;\s*)twid=([^;]+)/) || [])[1] || '';
+  const id = (decodeURIComponent(cookie).match(/u=(\d+)/) || [])[1] || null;
+
+  let pseudo = null;
+  const bouton = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+  if (bouton) pseudo = (bouton.innerText.match(/@([A-Za-z0-9_]+)/) || [])[1] || null;
+  if (!pseudo) {
+    const lien = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
+    const href = lien && lien.getAttribute('href');
+    if (href) pseudo = href.replace(/^\//, '') || null;
+  }
+
+  return { id, pseudo };
+}
 
 /** Premier element trouve parmi une liste de selecteurs. */
 function trouver(cles) {
@@ -146,6 +179,75 @@ function versFichier(dataUrl, nom) {
 }
 
 /**
+ * Confie l'heure a X plutot qu'a notre alarme.
+ *
+ * Le formulaire d'horaire de X est une poignee de `<select>` — mois, jour,
+ * annee, heure, minute, et AM/PM selon la langue du compte. On les remplit
+ * par le setter natif : un select monte par React ignore une affectation
+ * directe, il attend l'evenement.
+ *
+ * On ne confirme pas si la publication n'est pas autorisee. Sans ce clic,
+ * l'horaire est saisi et le composeur attend — meme regle que partout
+ * ailleurs ici : on prepare, la derniere main revient a quelqu'un.
+ */
+async function programmerChezX(quand, confirmer) {
+  const bouton = await attendre('boutonHoraire', 6000);
+  if (!bouton) return { ok: false, erreur: 'bouton horaire introuvable' };
+  bouton.click();
+
+  const date = new Date(quand);
+  await dors(900);
+
+  const selects = Array.from(document.querySelectorAll('select'));
+  if (selects.length < 5) return { ok: false, erreur: `formulaire d horaire absent (${selects.length} champs)` };
+
+  const poser = (select, valeur) => {
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    setter.call(select, String(valeur));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  /*
+   * Chaque champ est reconnu a son etiquette, pas a sa position : X les
+   * reordonne selon la locale, et un jour ecrit dans le champ du mois passe
+   * inapercu jusqu'a la publication.
+   */
+  const parNom = (motifs) =>
+    selects.find((s) => {
+      const nom = (s.getAttribute('aria-label') || s.getAttribute('name') || s.id || '').toLowerCase();
+      return motifs.some((m) => nom.includes(m));
+    });
+
+  const champs = [
+    ['mois', parNom(['month', 'mois']), date.getMonth() + 1],
+    ['jour', parNom(['day', 'jour']), date.getDate()],
+    ['annee', parNom(['year', 'ann']), date.getFullYear()],
+    ['heure', parNom(['hour', 'heure']), date.getHours()],
+    ['minute', parNom(['minute']), date.getMinutes()],
+  ];
+
+  const manquants = champs.filter(([, s]) => !s).map(([n]) => n);
+  if (manquants.length) return { ok: false, erreur: `champs d horaire non identifies : ${manquants.join(', ')}` };
+
+  for (const [, select, valeur] of champs) {
+    poser(select, valeur);
+    await dors(160);
+  }
+
+  const meridien = parNom(['am', 'pm', 'meridiem']);
+  if (meridien) poser(meridien, date.getHours() < 12 ? 'AM' : 'PM');
+
+  if (!confirmer) return { ok: true, confirme: false, note: 'horaire saisi, confirmation laissee a la main' };
+
+  await dors(400);
+  const valider = trouver('confirmerHoraire');
+  if (!valider) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
+  valider.click();
+  await dors(1500);
+  return { ok: true, confirme: true };
+}
+
+/**
  * Joint les images. X en accepte quatre au maximum.
  *
  * `trace` est rempli au fur et a mesure : un rapport qui dit seulement
@@ -237,13 +339,45 @@ async function publier() {
 }
 
 /** Enchainement complet. `publier` est toujours un choix conscient. */
-async function composer({ texte, images, alts, publier: doitPublier }) {
+async function composer({ texte, images, alts, publier: doitPublier, comptesAutorises, programmerLe }) {
   // Ce que le script a REELLEMENT recu : sans ca, un rapport a zero ne dit
   // pas si la charge etait vide ou si la jonction a echoue.
   const rapport = {
     texte: false, images: 0, alts: 0, publie: false,
     recu: { images: images?.length ?? 0, alts: alts?.length ?? 0, texte: (texte || "").length },
   };
+
+  /*
+   * Le compte, avant tout le reste.
+   *
+   * Piloter le navigateur, c'est publier depuis le compte qui se trouve etre
+   * connecte. Le module l'ignorait : une publication est partie du mauvais
+   * compte sans que rien ne l'ait signale, ni avant ni apres.
+   *
+   * On verifie donc avant d'ecrire une seule lettre. Ecrire puis refuser
+   * laisserait un composeur a moitie rempli sur un compte etranger, ce qui
+   * est exactement ce qu'on veut eviter.
+   *
+   * Liste vide : aucun filtre, comme avant. On ne bloque pas quelqu'un qui
+   * n'a rien demande — mais le compte detecte part dans le rapport, pour
+   * qu'il soit lisible sans avoir a le chercher.
+   */
+  const actif = compteActif();
+  rapport.compte = actif;
+
+  if (comptesAutorises?.length) {
+    const attendus = comptesAutorises.map((c) => String(c).replace(/^@/, '').toLowerCase());
+    const permis =
+      (actif.id && attendus.includes(actif.id)) ||
+      (actif.pseudo && attendus.includes(actif.pseudo.toLowerCase()));
+
+    if (!permis) {
+      rapport.refus = actif.id || actif.pseudo
+        ? `compte non autorise : ${actif.pseudo ? '@' + actif.pseudo : ''} ${actif.id || ''}`.trim()
+        : 'compte indeterminable — session absente ?';
+      return rapport;
+    }
+  }
 
   const ecriture = await ecrireTexte(texte);
   rapport.texte = ecriture.ok;
@@ -255,6 +389,20 @@ async function composer({ texte, images, alts, publier: doitPublier }) {
   rapport.trace = {};
   rapport.images = await joindreImages(images, rapport.trace);
   rapport.alts = await ecrireAlts(alts);
+
+  /*
+   * L'horaire vient apres les images : le formulaire de X ouvre une couche
+   * par-dessus le composeur, et le champ fichier n'y est plus atteignable.
+   *
+   * Programmer chez X, c'est publier sans surveillance — donc soumis a la
+   * meme autorisation que le clic « Post ». Sans elle, l'heure est saisie et
+   * la confirmation attend.
+   */
+  if (programmerLe) {
+    rapport.horaire = await programmerChezX(programmerLe, doitPublier);
+    rapport.programme = rapport.horaire.confirme === true;
+    return rapport;
+  }
 
   if (doitPublier) rapport.publie = await publier();
 
@@ -273,6 +421,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.action === 'xposterEtat') {
     const zone = trouver('zoneTexte');
     sendResponse({ ok: true, present: !!zone, vide: !zone || texteActuel(zone) === '' });
+    return true;
+  }
+
+  // Sert a la page d'options : « ajoute le compte ou je suis connecte »,
+  // plutot que de demander a quelqu'un de retrouver son identifiant numerique.
+  if (message?.action === 'xposterCompte') {
+    sendResponse({ ok: true, ...compteActif() });
     return true;
   }
 

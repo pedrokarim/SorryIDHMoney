@@ -313,6 +313,29 @@
           </div>
         </div>
         <div class="setting-item">
+          <span class="setting-label">Programmation</span>
+          <select id="xposter-mode-programmation" name="xposter-mode-programmation" style="width:230px">
+            <option value="extension">Par l'extension (machine allumée)</option>
+            <option value="x">Par X (part même PC éteint)</option>
+          </select>
+        </div>
+
+        <!-- Le garde-fou de compte. Piloter le navigateur, c'est publier
+             depuis le compte connecté : sans liste, rien ne le vérifie. -->
+        <div class="setting-item" style="align-items:flex-start;flex-direction:column;gap:8px">
+          <span class="setting-label">Comptes autorisés à publier</span>
+          <div id="xposter-comptes" style="display:flex;flex-direction:column;gap:5px;width:100%"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="xposter-compte-saisie" placeholder="@pseudo ou identifiant"
+                   spellcheck="false" style="width:190px;font-size:12px">
+            <button type="button" class="btn btn-secondary" id="xposter-compte-ajouter">Ajouter</button>
+            <button type="button" class="btn btn-primary" id="xposter-compte-detecter"
+                    title="Lire le compte connecté dans un onglet X ouvert">Détecter</button>
+          </div>
+          <span id="xposter-comptes-note" style="font-size:11px;opacity:.7"></span>
+        </div>
+
+        <div class="setting-item">
           <span class="setting-label" style="font-size:12px;opacity:.7">
             Lance le pont avec&nbsp;: <code id="xposter-commande" style="user-select:all"></code>
           </span>

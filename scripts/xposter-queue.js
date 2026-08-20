@@ -43,9 +43,26 @@ export async function programmer(entree) {
   const id = entree.id || `p${Date.now()}${Math.floor(performance.now() % 1000)}`;
   const quand = entree.quand ? new Date(entree.quand).getTime() : Date.now();
 
+  /*
+   * Qui tient l'horloge : l'extension, ou X.
+   *
+   * L'extension programme avec une alarme locale. La publication ne part que
+   * si la machine tourne, et c'est le navigateur qui compose a l'heure dite —
+   * donc depuis le compte connecte a ce moment-la.
+   *
+   * X programme sur ses serveurs. On compose tout de suite, on renseigne son
+   * formulaire d'horaire, et le post part meme machine eteinte. C'est plus
+   * sur pour une heure fixe, au prix d'un composeur ouvert maintenant.
+   */
+  const { xposterModeProgrammation } = await new Promise((r) =>
+    chrome.storage.sync.get({ xposterModeProgrammation: 'extension' }, r)
+  );
+  const programmation = entree.programmation || xposterModeProgrammation;
+
   const publication = {
     id,
     quand,
+    programmation,
     texte: entree.texte || '',
     images: entree.images || [],
     alts: entree.alts || [],
@@ -57,11 +74,23 @@ export async function programmer(entree) {
   file.push(publication);
   await ecrireFile(file);
 
+  if (programmation === 'x') {
+    // Aucune alarme : l'echeance part chez X, tout de suite. Garder un reveil
+    // en plus reposterait le meme contenu a l'heure dite.
+    const rapport = await executer(publication);
+    publication.etat = rapport?.programme ? 'confie a X' : rapport?.ok ? 'prepare' : 'echec';
+    publication.rapport = rapport;
+    publication.execute = Date.now();
+    await ecrireFile(file);
+    console.log(LOG, 'confie a X', id, new Date(quand).toISOString());
+    return { id, quand, programmation, rapport };
+  }
+
   const minutes = Math.max(MINUTE_MIN, (quand - Date.now()) / 60000);
   await chrome.alarms.create(PREFIXE_ALARME + id, { delayInMinutes: minutes });
 
   console.log(LOG, 'programme', id, new Date(quand).toISOString());
-  return { id, quand };
+  return { id, quand, programmation };
 }
 
 export async function annuler(id) {
@@ -257,8 +286,8 @@ export async function capturerComposeur() {
  * garde-fou qui ne depende pas de ce qu'on lui envoie.
  */
 export async function executer(publication) {
-  const { xposterAutoriserPublication } = await new Promise((r) =>
-    chrome.storage.sync.get({ xposterAutoriserPublication: false }, r)
+  const { xposterAutoriserPublication, xposterComptes } = await new Promise((r) =>
+    chrome.storage.sync.get({ xposterAutoriserPublication: false, xposterComptes: [] }, r)
   );
 
   const publier = publication.publier === true && xposterAutoriserPublication === true;
@@ -275,6 +304,11 @@ export async function executer(publication) {
       images: publication.images,
       alts: publication.alts,
       publier,
+      // La liste vit dans les reglages, jamais dans la charge : une demande ne
+      // doit pas pouvoir s'autoriser elle-meme un compte.
+      comptesAutorises: xposterComptes,
+      // Heure voulue, transmise seulement quand c'est X qui doit programmer.
+      programmerLe: publication.programmation === 'x' ? publication.quand : null,
     },
   });
 
