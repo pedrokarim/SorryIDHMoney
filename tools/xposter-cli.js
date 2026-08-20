@@ -22,6 +22,7 @@
  *   node tools/xposter-cli.js capturer --sortie ecran.png --token X
  *   node tools/xposter-cli.js tweets --token X [--compte ascencia64] [--sortie fil.json]
  *   node tools/xposter-cli.js annuler --id p123 --token X
+ *   node tools/xposter-cli.js relancer --id p123 --token X
  */
 
 const fs = require('fs');
@@ -82,7 +83,7 @@ const appeler = async (chemin, options = {}) =>
 (async () => {
   let charge = {};
   if (action === 'programmer' || action === 'maintenant') charge = construireCharge();
-  if (action === 'annuler') charge = { id: lire('id') };
+  if (action === 'annuler' || action === 'relancer') charge = { id: lire('id') };
   if (action === 'tweets') charge = { compte: lire('compte'), maximum: parseInt(lire('maximum', '0'), 10) };
 
   const rep = await appeler('/ordre', { method: 'POST', body: JSON.stringify({ action, charge }) });

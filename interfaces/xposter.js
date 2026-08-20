@@ -75,6 +75,32 @@ function carte(p) {
       rafraichir();
     });
     div.appendChild(annuler);
+  } else {
+    /*
+     * Une composition peut partir de travers sans que rien n'ait echoue : le
+     * navigateur etait sur un autre compte, une image n'a pas suivi. Le
+     * rapport dit « preparee », et pourtant c'est a refaire.
+     */
+    const octetsPerdus = !(p.images || []).length && p.nbImages > 0;
+    const relancer = document.createElement('button');
+    relancer.className = 'xp-btn';
+    relancer.textContent = 'Relancer';
+    relancer.disabled = octetsPerdus;
+    relancer.title = octetsPerdus
+      ? "Images purgées de l'historique — à redéposer depuis l'outil"
+      : 'Rouvrir le composeur avec cette publication';
+
+    relancer.addEventListener('click', async () => {
+      relancer.disabled = true;
+      relancer.textContent = 'Relance…';
+      const r = await chrome.runtime.sendMessage({ action: 'xposterRelancer', id: p.id });
+      if (!r?.ok) {
+        relancer.textContent = 'Échec';
+        console.error('[XPoster]', r?.erreur);
+      }
+      rafraichir();
+    });
+    div.appendChild(relancer);
   }
 
   return div;

@@ -18,7 +18,7 @@
  *      arbitraire.
  */
 
-import { programmer, annuler, lister, executer, capturerComposeur } from './xposter-queue.js';
+import { programmer, annuler, lister, executer, capturerComposeur, relancer as relancerPublication } from './xposter-queue.js';
 import { recupererTweets } from './xposter-tweets.js';
 
 const LOG = '[XPoster]';
@@ -48,6 +48,9 @@ const ACTIONS = {
    * produit quelque chose de tordu.
    */
   capturer: () => capturerComposeur(),
+
+  /** Rejoue une publication de l historique, sans la redeposer. */
+  relancer: (charge) => relancerPublication(charge.id),
 
   /*
    * Relit le fil publie. Strictement en lecture : sans session ouverte, X ne

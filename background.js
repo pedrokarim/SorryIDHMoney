@@ -18,7 +18,7 @@ import "./scripts/avb/avb-manager.js";
  * eteint.
  */
 import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
-import { surAlarme, annuler as annulerPublication, capturerComposeur, rearmer } from "./scripts/xposter-queue.js";
+import { surAlarme, annuler as annulerPublication, capturerComposeur, rearmer, relancer } from "./scripts/xposter-queue.js";
 
 installerVeille();
 sonder();
@@ -339,6 +339,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // elle-meme : elle est l onglet actif au moment ou elle demande.
       capturerComposeur()
         .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
+      return true;
+    case "xposterRelancer":
+      relancer(message.id)
+        .then((rapport) => sendResponse({ ok: true, rapport }))
         .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
       return true;
     case "xposterAnnuler":

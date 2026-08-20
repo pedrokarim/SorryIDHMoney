@@ -146,6 +146,36 @@ async function ongletComposeur() {
 }
 
 /**
+ * Rejoue une publication deja executee.
+ *
+ * Une composition peut partir de travers sans que rien n'ait echoue : le
+ * navigateur etait sur un autre compte, une image n'a pas suivi. Le rapport
+ * dit « prepare », et pourtant c'est a refaire. Rejouer evite de redeposer
+ * la charge depuis l'outil — ce qui suppose d'avoir garde le fichier.
+ *
+ * On ne duplique pas l'entree : on la reexecute et on note le nouveau
+ * resultat. L'historique dit ou en est chaque publication, pas combien de
+ * fois on s'y est repris.
+ */
+export async function relancer(id) {
+  const file = await lireFile();
+  const publication = file.find((p) => p.id === id);
+  if (!publication) throw new Error('publication introuvable');
+  if (!publication.images?.length && publication.nbImages) {
+    // Les octets ont ete purges : rejouer produirait un post ampute, ce qui
+    // est pire que de refuser.
+    throw new Error('images purgees de l historique — redeposer depuis l outil');
+  }
+
+  const rapport = await executer(publication);
+  publication.etat = rapport?.ok ? (publication.publier ? 'publie' : 'prepare') : 'echec';
+  publication.rapport = rapport;
+  publication.execute = Date.now();
+  await ecrireFile(file);
+  return rapport;
+}
+
+/**
  * Repose les reveils a partir de la file.
  *
  * Recharger l'extension efface ses alarmes, pas son stockage : la file
@@ -279,11 +309,21 @@ export async function surAlarme(alarme) {
   // On garde les vingt dernieres executions et tout ce qui attend encore :
   // sans purge, la file grossit indefiniment dans le stockage local.
   const attente = file.filter((p) => p.etat === 'en attente');
+  /*
+   * Les trois dernieres executions gardent leurs octets, les suivantes non.
+   *
+   * Tout alleger rendait le bouton « relancer » inutile : une publication
+   * partie de travers — mauvais compte, image manquante — ne pouvait plus
+   * etre rejouee, faute d'images a rejouer. Trois entrees completes pesent
+   * une quinzaine de mega-octets, ce qui tient largement, et couvrent le cas
+   * reel : on relance ce qui vient d'echouer, pas ce qui date de trois
+   * semaines.
+   */
   const finies = file
     .filter((p) => p.etat !== 'en attente')
     .sort((a, b) => (b.execute || 0) - (a.execute || 0))
     .slice(0, 20)
-    .map(sansOctets);
+    .map((p, rang) => (rang < 3 ? p : sansOctets(p)));
 
   await ecrireFile([...attente, ...finies]);
 }
