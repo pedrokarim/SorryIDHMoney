@@ -160,17 +160,27 @@ export async function programmesChezX() {
         }
 
         const texteFenetre = fenetre.innerText || '';
+
+        /*
+         * On decoupe le texte de la fenetre, on n'enumere pas des elements.
+         *
+         * Une publication programmee n'est pas un `<article>` — chercher ce
+         * balisage rendait zero entree alors que la fenetre en affichait une,
+         * et seul l'apercu joint au rapport l'a montre. Le balisage de X
+         * changera encore ; la ligne « Will send on… » qui ouvre chaque entree
+         * est ce qu'il y a de plus stable ici, parce que c'est ce que
+         * l'utilisateur lit.
+         */
+        const MARQUEUR = /^(Will send on|Sera envoy[ée].*)\b/;
+        const lignes = texteFenetre.split('\n').map((l) => l.trim());
         const entrees = [];
-        for (const item of fenetre.querySelectorAll('article, [data-testid="tweet"]')) {
-          const brut = (item.innerText || '').trim();
-          if (brut.length < 5) continue;
-          const texte = item.querySelector('[data-testid="tweetText"]');
-          entrees.push({
-            // Chaque entree annonce son heure d'envoi sur sa premiere ligne.
-            annonce: (brut.match(/^[^\n]*/) || [''])[0],
-            texte: texte ? texte.innerText : brut,
-            medias: item.querySelectorAll('img[src*="/media/"], video').length,
-          });
+
+        for (const ligne of lignes) {
+          if (MARQUEUR.test(ligne)) entrees.push({ annonce: ligne, texte: '' });
+          else if (entrees.length && ligne) {
+            const courante = entrees[entrees.length - 1];
+            courante.texte = courante.texte ? courante.texte + '\n' + ligne : ligne;
+          }
         }
 
         return {
