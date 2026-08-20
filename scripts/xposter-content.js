@@ -100,6 +100,26 @@ async function attendre(cles, delai = 8000) {
   return null;
 }
 
+/**
+ * Le bouton qui envoie, parmi ceux qui lui ressemblent.
+ *
+ * `tweetButtonInline` designe le composeur en ligne du fil d'accueil. Il
+ * existe derriere la fenetre de composition, vide et donc grise — et il
+ * arrivait le premier dans la liste des selecteurs. On concluait « bouton
+ * desactive » alors que le bon, dans la fenetre, attendait juste a cote.
+ *
+ * On prend donc tous les candidats et on garde celui qui est visible et
+ * actif, en preferant celui qui se trouve dans la fenetre.
+ */
+function boutonEnvoi() {
+  const candidats = SEL.boutonPoster
+    .flatMap((sel) => Array.from(document.querySelectorAll(sel)))
+    .filter((b) => b.offsetParent !== null && b.getAttribute('aria-disabled') !== 'true');
+
+  const fenetre = document.querySelector('[aria-modal="true"], [role="dialog"]');
+  return (fenetre && candidats.find((b) => fenetre.contains(b))) || candidats[0] || null;
+}
+
 /** Vide le composeur avant d ecrire, pour ne jamais ajouter a du residu. */
 async function viderComposeur(zone) {
   zone.focus();
@@ -370,14 +390,12 @@ async function programmerChezX(quand, confirmer) {
    * Disparition de la boite valait succes ; elle ne vaut plus que passage a
    * l'etape suivante.
    */
-  const envoi = await attendre('boutonPoster', 5000);
+  // On laisse le composeur se remettre en place avant de chercher son bouton.
+  let envoi = null;
+  for (let i = 0; i < 20 && !envoi; i++) { envoi = boutonEnvoi(); if (!envoi) await dors(250); }
   if (!envoi) {
     return { ok: false, confirme: true, envoye: false, relu, resume,
-             erreur: 'bouton d envoi introuvable apres confirmation de l heure' };
-  }
-  if (envoi.getAttribute('aria-disabled') === 'true') {
-    return { ok: false, confirme: true, envoye: false, relu, resume,
-             erreur: 'bouton d envoi desactive apres confirmation de l heure' };
+             erreur: 'aucun bouton d envoi actif apres confirmation de l heure' };
   }
 
   const libelle = (envoi.innerText || '').trim();
@@ -468,10 +486,15 @@ async function ecrireAlts(alts) {
 
 /** Clique Poster. Uniquement si l'appelant l'a demande explicitement. */
 async function publier() {
-  const bouton = await attendre('boutonPoster', 5000);
-  if (!bouton) throw new Error('bouton Poster introuvable');
-  if (bouton.getAttribute('aria-disabled') === 'true') {
-    throw new Error('bouton Poster desactive — texte vide ou televersement en cours');
+  let bouton = null;
+  for (let i = 0; i < 20 && !bouton; i++) { bouton = boutonEnvoi(); if (!bouton) await dors(250); }
+  if (!bouton) {
+    // Distingue « pas de bouton » de « bouton grise » : le second veut dire
+    // texte vide ou televersement en cours, et cela se corrige autrement.
+    const existe = SEL.boutonPoster.some((sel) => document.querySelector(sel));
+    throw new Error(existe
+      ? 'bouton Poster desactive — texte vide ou televersement en cours'
+      : 'bouton Poster introuvable');
   }
   bouton.click();
   await dors(1500);
