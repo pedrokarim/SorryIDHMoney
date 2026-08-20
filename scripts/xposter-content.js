@@ -353,12 +353,38 @@ async function programmerChezX(quand, confirmer) {
   valider.click();
   await dors(1800);
 
-  // La boite disparait quand X a accepte. Si elle est encore la, quelque
-  // chose a ete refuse et le dire vaut mieux que d annoncer un post
-  // programme qui ne l est pas.
   const encoreLa = document.querySelectorAll('select').length >= 5;
-  return { ok: !encoreLa, confirme: !encoreLa, relu, resume,
-           erreur: encoreLa ? 'boite d horaire toujours affichee apres confirmation' : undefined };
+  if (encoreLa) {
+    return { ok: false, confirme: false, relu, resume, erreur: 'boite d horaire toujours affichee apres confirmation' };
+  }
+
+  /*
+   * Confirmer l'heure ne programme rien.
+   *
+   * Le bouton « Confirm » ferme la boite et rattache l'heure au composeur —
+   * c'est tout. Le bouton principal devient alors « Schedule », et c'est lui
+   * qui envoie la publication chez X. Sans ce second clic, la liste des
+   * publications en attente reste vide, ce qu'un premier essai a montre :
+   * le rapport annoncait « programme », X ne gardait rien.
+   *
+   * Disparition de la boite valait succes ; elle ne vaut plus que passage a
+   * l'etape suivante.
+   */
+  const envoi = await attendre('boutonPoster', 5000);
+  if (!envoi) {
+    return { ok: false, confirme: true, envoye: false, relu, resume,
+             erreur: 'bouton d envoi introuvable apres confirmation de l heure' };
+  }
+  if (envoi.getAttribute('aria-disabled') === 'true') {
+    return { ok: false, confirme: true, envoye: false, relu, resume,
+             erreur: 'bouton d envoi desactive apres confirmation de l heure' };
+  }
+
+  const libelle = (envoi.innerText || '').trim();
+  envoi.click();
+  await dors(2200);
+
+  return { ok: true, confirme: true, envoye: true, libelle, relu, resume };
 }
 
 /**
@@ -514,7 +540,9 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
    */
   if (programmerLe) {
     rapport.horaire = await programmerChezX(programmerLe, doitPublier);
-    rapport.programme = rapport.horaire.confirme === true;
+    // « Programme » veut dire parti chez X, pas « heure saisie » : c est la
+    // difference que le premier essai avait effacee.
+    rapport.programme = rapport.horaire.envoye === true;
     return rapport;
   }
 
