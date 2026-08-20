@@ -17,6 +17,9 @@
 
 const LOG = '[XPoster]';
 
+/** La page ou X garde ce qu il doit publier plus tard. */
+const URL_PROGRAMMES = 'https://x.com/compose/post/unsent/scheduled';
+
 /** Au-dela, on rend ce qu'on a plutot que de faire defiler indefiniment. */
 const TOURS_MAX = 150;
 
@@ -111,6 +114,58 @@ function releverDansLaPage(toursMax, maximum) {
       annonce: (document.body.innerText.match(/([\d\s.,]+)\s*(posts|Post)/) || [])[1] || null,
     };
   })();
+}
+
+/**
+ * Ce que X garde en attente pour nous.
+ *
+ * Les posts programmes chez X ne sont visibles nulle part publiquement : ni
+ * sur le profil, ni dans le fil. Sans cette lecture, confier une heure a X
+ * revient a lancer quelque chose qu'on ne peut plus ni verifier ni annuler
+ * avant qu'il ne parte.
+ *
+ * Lecture seule, comme le releve du fil. La suppression reste un geste de la
+ * main : elle se fait sur cette page, ou l'on voit ce qu'on supprime.
+ */
+export async function programmesChezX() {
+  const [precedent] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const onglet = await chrome.tabs.create({ url: URL_PROGRAMMES, active: true });
+
+  try {
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      const etat = await chrome.tabs.get(onglet.id);
+      if (etat.status === 'complete') break;
+    }
+    await new Promise((r) => setTimeout(r, 2600));
+
+    const [resultat] = await chrome.scripting.executeScript({
+      target: { tabId: onglet.id },
+      func: () => {
+        const entrees = [];
+        for (const article of document.querySelectorAll('article, [data-testid="tweet"]')) {
+          const brut = (article.innerText || '').trim();
+          if (brut.length < 5) continue;
+          const texte = article.querySelector('[data-testid="tweetText"]');
+          entrees.push({
+            // La date d'envoi est annoncee en tete de chaque entree.
+            annonce: (brut.match(/^[^\n]*/) || [''])[0],
+            texte: texte ? texte.innerText : brut,
+            medias: article.querySelectorAll('img[src*="/media/"], video').length,
+          });
+        }
+        return { entrees, vide: /aren’t any|n’avez aucun|no scheduled|aucun/i.test(document.body.innerText) };
+      },
+    });
+
+    const { entrees, vide } = resultat.result;
+    console.log(LOG, entrees.length, 'post(s) programme(s) chez X');
+    return { total: entrees.length, vide, url: URL_PROGRAMMES, entrees };
+  } catch (err) {
+    // L'onglet reste ouvert meme en cas d'echec : c'est la page ou l'on
+    // supprime, autant qu'elle soit deja sous la main pour regarder.
+    throw err;
+  }
 }
 
 /**

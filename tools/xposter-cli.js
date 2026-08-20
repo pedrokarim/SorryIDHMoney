@@ -23,6 +23,7 @@
  *   node tools/xposter-cli.js tweets --token X [--compte ascencia64] [--sortie fil.json]
  *   node tools/xposter-cli.js annuler --id p123 --token X
  *   node tools/xposter-cli.js relancer --id p123 --token X
+ *   node tools/xposter-cli.js programmes --token X
  */
 
 const fs = require('fs');

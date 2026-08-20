@@ -19,7 +19,7 @@
  */
 
 import { programmer, annuler, lister, executer, capturerComposeur, relancer as relancerPublication } from './xposter-queue.js';
-import { recupererTweets } from './xposter-tweets.js';
+import { recupererTweets, programmesChezX } from './xposter-tweets.js';
 
 const LOG = '[XPoster]';
 const ALARME_VEILLE = 'xposter:veille';
@@ -58,6 +58,9 @@ const ACTIONS = {
    * qui est deja parti.
    */
   tweets: (charge) => recupererTweets(charge),
+
+  /** Ce que X garde en attente : invisible partout ailleurs. */
+  programmes: () => programmesChezX(),
 
   /** Compose tout de suite, sans passer par la file. */
   maintenant: async (charge) =>

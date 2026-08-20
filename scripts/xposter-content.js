@@ -208,39 +208,88 @@ async function programmerChezX(quand, confirmer) {
   };
 
   /*
-   * Chaque champ est reconnu a son etiquette, pas a sa position : X les
-   * reordonne selon la locale, et un jour ecrit dans le champ du mois passe
-   * inapercu jusqu'a la publication.
+   * Chaque champ est reconnu a la forme de sa liste, pas a son etiquette.
+   *
+   * Premier essai : chercher « month », « day » dans `aria-label`, `name` ou
+   * `id`. Aucun des cinq n'a ete trouve — X etiquette ses champs par un texte
+   * a cote, pas par un attribut. Et une etiquette est traduite : la chercher
+   * en anglais aurait de toute facon lache sur un compte en francais.
+   *
+   * La forme, elle, ne se traduit pas. Soixante entrees, c'est une liste de
+   * minutes. Vingt-huit a trente et une, un jour du mois. Quatre chiffres au
+   * dela de deux mille, une annee. Restent le mois et l'heure, departages par
+   * l'ordre d'affichage — et verifies quand meme, parce qu'ecrire un jour
+   * dans le champ du mois ne se verrait qu'a la publication.
    */
-  const parNom = (motifs) =>
-    selects.find((s) => {
-      const nom = (s.getAttribute('aria-label') || s.getAttribute('name') || s.id || '').toLowerCase();
-      return motifs.some((m) => nom.includes(m));
-    });
+  const decrire = (s) => {
+    const valeurs = Array.from(s.options).map((o) => o.value);
+    const nombres = valeurs.map((v) => parseInt(v, 10)).filter((n) => !isNaN(n));
+    return {
+      select: s,
+      taille: valeurs.length,
+      tousNombres: nombres.length === valeurs.length && valeurs.length > 0,
+      min: nombres.length ? Math.min(...nombres) : null,
+      max: nombres.length ? Math.max(...nombres) : null,
+    };
+  };
 
-  const champs = [
-    ['mois', parNom(['month', 'mois']), date.getMonth() + 1],
-    ['jour', parNom(['day', 'jour']), date.getDate()],
-    ['annee', parNom(['year', 'ann']), date.getFullYear()],
-    ['heure', parNom(['hour', 'heure']), date.getHours()],
-    ['minute', parNom(['minute']), date.getMinutes()],
+  const formes = selects.map(decrire);
+  const annee = formes.find((f) => f.tousNombres && f.min >= 2000 && f.max < 2100 && f.taille <= 10);
+  const minute = formes.find((f) => f.taille === 60);
+  const jour = formes.find((f) => f.taille >= 28 && f.taille <= 31);
+
+  // Ne restent que le mois et l'heure. Les deux peuvent compter douze entrees
+  // sur un compte en 12 h, d'ou l'ordre d'affichage comme depart : la date
+  // vient avant l'heure, partout.
+  const restants = formes.filter((f) => f !== annee && f !== minute && f !== jour);
+  const mois = restants[0];
+  const heure = restants[1];
+
+  const attendus = [
+    ['mois', mois, date.getMonth() + 1, (f) => f && (f.taille === 12 || f.taille === 13)],
+    ['jour', jour, date.getDate(), (f) => f && f.taille >= 28 && f.taille <= 31],
+    ['annee', annee, date.getFullYear(), (f) => f && f.min >= 2000],
+    ['heure', heure, date.getHours(), (f) => f && (f.taille === 24 || f.taille === 12)],
+    ['minute', minute, date.getMinutes(), (f) => f && f.taille === 60],
   ];
 
-  const manquants = champs.filter(([, s]) => !s).map(([n]) => n);
-  if (manquants.length) return { ok: false, erreur: `champs d horaire non identifies : ${manquants.join(', ')}` };
+  const suspects = attendus.filter(([, f, , conforme]) => !conforme(f)).map(([n]) => n);
+  if (suspects.length) {
+    return {
+      ok: false,
+      erreur: `champs d horaire non identifies : ${suspects.join(', ')}`,
+      formes: formes.map((f) => ({ taille: f.taille, min: f.min, max: f.max })),
+    };
+  }
 
-  for (const [, select, valeur] of champs) {
-    poser(select, valeur);
+  for (const [nom, forme, valeur] of attendus) {
+    // Le mois peut valoir « 8 », « 08 » ou « August » selon la locale : on
+    // cherche donc l'option, on ne devine pas sa valeur.
+    const options = Array.from(forme.select.options);
+    const cible =
+      options.find((o) => parseInt(o.value, 10) === valeur) ||
+      (nom === 'mois' ? options[valeur - 1] : null) ||
+      (nom === 'heure' && forme.taille === 12 ? options[(valeur % 12) || 12 - 1] : null);
+
+    if (!cible) return { ok: false, erreur: `valeur ${valeur} absente du champ ${nom}` };
+    poser(forme.select, cible.value);
     await dors(160);
   }
 
-  const meridien = parNom(['am', 'pm', 'meridiem']);
-  if (meridien) poser(meridien, date.getHours() < 12 ? 'AM' : 'PM');
+  // 12 h : le champ AM/PM est un select de deux entrees, hors des cinq.
+  const meridien = formes.find((f) => f.taille === 2);
+  if (meridien) poser(meridien.select, date.getHours() < 12 ? 'AM' : 'PM');
 
   if (!confirmer) return { ok: true, confirme: false, note: 'horaire saisi, confirmation laissee a la main' };
 
   await dors(400);
-  const valider = trouver('confirmerHoraire');
+  // Le bouton n'a pas toujours de testid : on se rabat sur son libelle, dans
+  // les deux langues que ce compte peut afficher.
+  const valider =
+    trouver('confirmerHoraire') ||
+    Array.from(document.querySelectorAll('[role="button"], button')).find((b) =>
+      /^(confirm|confirmer)$/i.test((b.innerText || '').trim())
+    );
   if (!valider) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
   valider.click();
   await dors(1500);
