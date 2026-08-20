@@ -150,8 +150,20 @@ async function ecrireTexte(texte) {
 
   if (obtenu === attendu) return { ok: true, methode: 'collage' };
 
-  // Repli : certains navigateurs refusent le ClipboardEvent synthetique.
-  console.warn(LOG, 'collage incomplet, repli sur insertText');
+  /*
+   * Le collage echoue a chaque fois, et ce n'est pas une anomalie.
+   *
+   * L'evenement est bien forme — verifie en Chrome 151, il transporte son
+   * texte. C'est l'editeur de X qui ignore un collage qu'aucune main n'a
+   * declenche. Le repli est donc le chemin normal, pas un incident : le
+   * signaler en avertissement remplissait la page d'erreurs de l'extension a
+   * chaque publication, ce qui apprend surtout a ne plus la lire.
+   *
+   * On garde la tentative : le jour ou elle passera, elle est plus sure —
+   * `insertText` relance la detection de liens de X, et c'est elle qui avait
+   * produit une URL repetee sept fois. D'ou la verification qui suit.
+   */
+  console.debug(LOG, 'collage ignore par l editeur, repli sur insertText');
   await viderComposeur(zone);
   document.execCommand('insertText', false, texte);
   await dors(400);
