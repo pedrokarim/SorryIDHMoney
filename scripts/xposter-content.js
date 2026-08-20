@@ -145,22 +145,47 @@ function versFichier(dataUrl, nom) {
   return new File([octets], nom || 'image.png', { type });
 }
 
-/** Joint les images. X en accepte quatre au maximum. */
-async function joindreImages(images) {
+/**
+ * Joint les images. X en accepte quatre au maximum.
+ *
+ * `trace` est rempli au fur et a mesure : un rapport qui dit seulement
+ * « zero image » ne distingue pas un champ introuvable d'un fichier refuse
+ * ou d'une affectation ignoree. Chaque etape laisse donc sa marque.
+ */
+async function joindreImages(images, trace = {}) {
+  trace.recues = images?.length ?? 0;
   if (!images?.length) return 0;
+
   const champ = await attendre('champFichier');
+  trace.champTrouve = !!champ;
   if (!champ) throw new Error('champ fichier introuvable');
+  trace.champ = champ.getAttribute('data-testid') || champ.getAttribute('accept') || 'input';
 
   const dt = new DataTransfer();
-  images.slice(0, 4).forEach((img, i) => dt.items.add(versFichier(img.dataUrl, img.nom || `image-${i + 1}.png`)));
+  const fichiers = images.slice(0, 4).map((img, i) => versFichier(img.dataUrl, img.nom || `image-${i + 1}.png`));
+  trace.construits = fichiers.map((f) => ({ nom: f.name, type: f.type, octets: f.size }));
+
+  for (const f of fichiers) {
+    try { dt.items.add(f); } catch (e) { trace.erreurAjout = String(e.message || e); }
+  }
+  trace.dansDataTransfer = dt.files.length;
 
   // `files` est en lecture seule : seul un DataTransfer peut la remplacer.
   champ.files = dt.files;
+  trace.apresAffectation = champ.files.length;
+
   champ.dispatchEvent(new Event('change', { bubbles: true }));
 
   // Le televersement doit finir avant qu'on puisse toucher aux textes alternatifs.
   await dors(1200 + dt.files.length * 900);
-  return dt.files.length;
+
+  // Ce que X a reellement monte dans le composeur, et non ce qu'on lui a
+  // tendu : c'est la seule mesure qui compte.
+  trace.vignettesVisibles = document.querySelectorAll(
+    '[data-testid="attachments"] img, [data-testid="attachments"] video, [aria-label*="Media"] img'
+  ).length;
+
+  return champ.files.length;
 }
 
 /**
@@ -227,7 +252,8 @@ async function composer({ texte, images, alts, publier: doitPublier }) {
   // Sans texte conforme, on ne joint rien et on ne publie surtout pas : mieux
   // vaut un composeur vide qu une publication de travers.
   if (!ecriture.ok) return rapport;
-  rapport.images = await joindreImages(images);
+  rapport.trace = {};
+  rapport.images = await joindreImages(images, rapport.trace);
   rapport.alts = await ecrireAlts(alts);
 
   if (doitPublier) rapport.publie = await publier();

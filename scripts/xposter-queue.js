@@ -199,9 +199,12 @@ export async function rearmer() {
  */
 export async function capturerComposeur() {
   const onglets = await chrome.tabs.query({
-    url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'],
+    // Apres remplissage, X peut avoir change d URL sans fermer le composeur :
+    // on regarde donc tout x.com, et on prefere une route de composition.
+    url: ['https://x.com/*', 'https://twitter.com/*'],
   });
-  if (!onglets.length) throw new Error('aucun composeur ouvert');
+  if (!onglets.length) throw new Error('aucun onglet X ouvert');
+  onglets.sort((a, b) => (b.url.includes('/compose/') ? 1 : 0) - (a.url.includes('/compose/') ? 1 : 0));
 
   const onglet = onglets[0];
   if (!onglet.active) {
