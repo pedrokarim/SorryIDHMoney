@@ -191,14 +191,23 @@ function versFichier(dataUrl, nom) {
  * ailleurs ici : on prepare, la derniere main revient a quelqu'un.
  */
 async function programmerChezX(quand, confirmer) {
-  const bouton = await attendre('boutonHoraire', 6000);
-  if (!bouton) return { ok: false, erreur: 'bouton horaire introuvable' };
-  bouton.click();
-
   const date = new Date(quand);
-  await dors(900);
 
-  const selects = Array.from(document.querySelectorAll('select'));
+  /*
+   * La boite est peut-etre deja ouverte — un essai precedent l'a laissee la.
+   * Recliquer sur le bouton d'horaire la referme ou la reouvre a vide selon
+   * l'humeur de X ; on ne clique donc que s'il n'y a rien a l'ecran.
+   */
+  let selects = Array.from(document.querySelectorAll('select'));
+  let dejaOuverte = selects.length >= 5;
+
+  if (!dejaOuverte) {
+    const bouton = await attendre('boutonHoraire', 6000);
+    if (!bouton) return { ok: false, erreur: 'bouton horaire introuvable' };
+    bouton.click();
+    await dors(900);
+    selects = Array.from(document.querySelectorAll('select'));
+  }
   if (selects.length < 5) return { ok: false, erreur: `formulaire d horaire absent (${selects.length} champs)` };
 
   const poser = (select, valeur) => {
@@ -291,7 +300,34 @@ async function programmerChezX(quand, confirmer) {
   const meridien = formes.find((f) => f.taille === 2);
   if (meridien) poser(meridien.select, date.getHours() < 12 ? 'AM' : 'PM');
 
-  if (!confirmer) return { ok: true, confirme: false, note: 'horaire saisi, confirmation laissee a la main' };
+  /*
+   * On relit avant de conclure.
+   *
+   * La version precedente annoncait « rempli » aussitot apres avoir ecrit, et
+   * elle a annonce un succes alors que la boite affichait encore l'heure d'un
+   * essai anterieur. Un composant controle par React peut reprendre la main
+   * sur la valeur qu'on vient de poser ; seule la relecture le dit.
+   */
+  await dors(500);
+  const relu = {};
+  const ecarts = [];
+  for (const [nom, forme, valeur] of attendus) {
+    const obtenu = parseInt(forme.select.value, 10);
+    relu[nom] = forme.select.value;
+    if (obtenu !== valeur) ecarts.push(`${nom} : ${obtenu} au lieu de ${valeur}`);
+  }
+
+  // X resume l'echeance en toutes lettres au-dessus du formulaire. C'est ce
+  // que verra qui regarde, donc ce qu'on rapporte.
+  const resume = (document.body.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
+
+  if (ecarts.length) {
+    return { ok: false, erreur: `horaire non pris : ${ecarts.join(' ; ')}`, relu, resume, dejaOuverte };
+  }
+
+  if (!confirmer) {
+    return { ok: true, confirme: false, relu, resume, note: 'horaire saisi, confirmation laissee a la main' };
+  }
 
   await dors(400);
   // Le bouton n'a pas toujours de testid : on se rabat sur son libelle, dans
@@ -303,8 +339,14 @@ async function programmerChezX(quand, confirmer) {
     );
   if (!valider) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
   valider.click();
-  await dors(1500);
-  return { ok: true, confirme: true };
+  await dors(1800);
+
+  // La boite disparait quand X a accepte. Si elle est encore la, quelque
+  // chose a ete refuse et le dire vaut mieux que d annoncer un post
+  // programme qui ne l est pas.
+  const encoreLa = document.querySelectorAll('select').length >= 5;
+  return { ok: !encoreLa, confirme: !encoreLa, relu, resume,
+           erreur: encoreLa ? 'boite d horaire toujours affichee apres confirmation' : undefined };
 }
 
 /**
