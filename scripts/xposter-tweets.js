@@ -34,17 +34,17 @@ const MAX_ROUNDS = 150;
  * DOM. On releve donc a chaque tour et on accumule dans une table, sinon on
  * ne garderait que le bas de la page.
  */
-function readFromPage(toursMax, cap) {
+function readFromPage(maxRounds, cap) {
   const seen = new Map();
 
   const record = () => {
     for (const article of document.querySelectorAll('article')) {
-      const lien = [...article.querySelectorAll('a')]
+      const link = [...article.querySelectorAll('a')]
         .map((a) => a.getAttribute('href') || '')
         .find((h) => /\/status\/\d+/.test(h));
-      if (!lien) continue;
+      if (!link) continue;
 
-      const id = lien.match(/\/status\/(\d+)/)[1];
+      const id = link.match(/\/status\/(\d+)/)[1];
       if (seen.has(id)) continue;
 
       const balise = article.querySelector('time[datetime]');
@@ -53,12 +53,12 @@ function readFromPage(toursMax, cap) {
 
       seen.set(id, {
         id,
-        lien: 'https://x.com' + lien.split('/photo/')[0],
+        link: 'https://x.com' + link.split('/photo/')[0],
         date: balise ? balise.getAttribute('datetime') : null,
         dateAffichee: balise ? balise.textContent : null,
         texte: texte ? texte.innerText : '',
         // Le compte apparait dans le lien : un repost pointe ailleurs.
-        auteur: (lien.match(/^\/([^/]+)\//) || [])[1] || '',
+        auteur: (link.match(/^\/([^/]+)\//) || [])[1] || '',
         reponse: /En r[ée]ponse [àa]|Replying to/.test(brut),
         repost: /a reposté|reposted/i.test(brut),
         // Les testids de X bougent : on compte aussi les images servies par
@@ -76,7 +76,7 @@ function readFromPage(toursMax, cap) {
   return (async () => {
     let stagne = 0;
 
-    for (let tour = 0; tour < toursMax; tour++) {
+    for (let round = 0; round < maxRounds; round++) {
       const avant = seen.size;
       record();
       if (cap && seen.size >= cap) break;
@@ -151,15 +151,15 @@ export async function scheduledAtX() {
          * donc a la fenetre, et sans elle on ne rend rien plutot que n'importe
          * quoi.
          */
-        const fenetre =
+        const modal =
           document.querySelector('[aria-modal="true"]') ||
           document.querySelector('[role="dialog"]');
 
-        if (!fenetre) {
+        if (!modal) {
           return { entries: [], vide: false, erreur: 'fenetre des publications programmees absente' };
         }
 
-        const modalText = fenetre.innerText || '';
+        const modalText = modal.innerText || '';
 
         /*
          * On decoupe le texte de la fenetre, on n'enumere pas des elements.

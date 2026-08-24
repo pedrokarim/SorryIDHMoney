@@ -72,8 +72,8 @@ function activeAccount() {
   const button = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
   if (button) pseudo = (button.innerText.match(/@([A-Za-z0-9_]+)/) || [])[1] || null;
   if (!pseudo) {
-    const lien = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
-    const href = lien && lien.getAttribute('href');
+    const link = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
+    const href = link && link.getAttribute('href');
     if (href) pseudo = href.replace(/^\//, '') || null;
   }
 
@@ -81,8 +81,8 @@ function activeAccount() {
 }
 
 /** Premier element trouve parmi une liste de selecteurs. */
-function find(cles) {
-  for (const sel of SEL[cles] || []) {
+function find(key) {
+  for (const sel of SEL[key] || []) {
     const el = document.querySelector(sel);
     if (el) return el;
   }
@@ -90,10 +90,10 @@ function find(cles) {
 }
 
 /** Attend qu'un element apparaisse, ou rend null au bout du delai. */
-async function waitFor(cles, delai = 8000) {
-  const fin = Date.now() + delai;
-  while (Date.now() < fin) {
-    const el = find(cles);
+async function waitFor(key, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const el = find(key);
     if (el) return el;
     await sleep(150);
   }
@@ -189,15 +189,15 @@ async function writeText(texte) {
   document.execCommand('insertText', false, texte);
   await sleep(400);
 
-  const obtenu2 = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
-  if (obtenu2 === waited) return { ok: true, methode: 'insertText' };
+  const gotAfterRetry = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
+  if (gotAfterRetry === waited) return { ok: true, methode: 'insertText' };
 
   // On ne laisse pas un composeur a moitie rempli sans le dire.
   return {
     ok: false,
     methode: 'aucune',
     waited: waited.slice(0, 120),
-    got: obtenu2.slice(0, 120),
+    got: gotAfterRetry.slice(0, 120),
   };
 }
 
@@ -253,9 +253,9 @@ async function scheduleAtX(quand, confirmer) {
   }
   if (selects.length < 5) return { ok: false, erreur: `formulaire d horaire absent (${selects.length} champs)` };
 
-  const apply = (select, valeur) => {
+  const apply = (select, value) => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
-    setter.call(select, String(valeur));
+    setter.call(select, String(value));
     select.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
@@ -323,16 +323,16 @@ async function scheduleAtX(quand, confirmer) {
     };
   }
 
-  for (const [nom, forme, valeur] of expected) {
+  for (const [nom, forme, value] of expected) {
     // Le mois peut valoir « 8 », « 08 » ou « August » selon la locale : on
     // cherche donc l'option, on ne devine pas sa valeur.
     // `forme.options` exclut deja l'option vide, donc le rang d'un mois y est
     // bien son numero moins un.
     const options = forme.options;
     const cible =
-      options.find((o) => parseInt(o.value, 10) === valeur) ||
-      (nom === 'mois' ? options[valeur - 1] : null) ||
-      (nom === 'heure' && forme.taille === 12 ? options[((valeur % 12) || 12) - 1] : null);
+      options.find((o) => parseInt(o.value, 10) === value) ||
+      (nom === 'mois' ? options[value - 1] : null) ||
+      (nom === 'heure' && forme.taille === 12 ? options[((value % 12) || 12) - 1] : null);
 
     if (!cible) return { ok: false, erreur: `valeur ${valeur} absente du champ ${nom}` };
     apply(forme.select, cible.value);
@@ -354,10 +354,10 @@ async function scheduleAtX(quand, confirmer) {
   await sleep(500);
   const relu = {};
   const mismatches = [];
-  for (const [nom, forme, valeur] of expected) {
+  for (const [nom, forme, value] of expected) {
     const got = parseInt(forme.select.value, 10);
     relu[nom] = forme.select.value;
-    if (got !== valeur) mismatches.push(`${nom} : ${obtenu} au lieu de ${valeur}`);
+    if (got !== value) mismatches.push(`${nom} : ${obtenu} au lieu de ${valeur}`);
   }
 
   // X resume l'echeance en toutes lettres au-dessus du formulaire. C'est ce
@@ -368,8 +368,8 @@ async function scheduleAtX(quand, confirmer) {
    * bloquait le thread principal a lui seul. Le resume vit dans la boite
    * d'horaire, quelques dizaines d'elements plus bas.
    */
-  const cadre = document.querySelector('[aria-modal="true"], [role="dialog"]') || document.body;
-  const resume = (cadre.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
+  const modalRoot = document.querySelector('[aria-modal="true"], [role="dialog"]') || document.body;
+  const resume = (modalRoot.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
 
   if (mismatches.length) {
     return { ok: false, erreur: `horaire non pris : ${ecarts.join(' ; ')}`, relu, resume, dejaOuverte };
@@ -399,19 +399,19 @@ async function scheduleAtX(quand, confirmer) {
    * `textContent` plutot que `innerText` : le premier lit l'arbre, le second
    * demande au navigateur ce qui est reellement affiche, donc un layout.
    */
-  const LIBELLES_CONFIRMATION = /^(confirm|confirmer|update|mettre a jour|mettre à jour)$/i;
-  const boite = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
+  const CONFIRM_LABELS = /^(confirm|confirmer|update|mettre a day|mettre à day)$/i;
+  const dialogRoot = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
   const confirmButton =
     find('confirmScheduleButton') ||
-    Array.from(boite.querySelectorAll('[role="button"], button')).find((b) =>
-      LIBELLES_CONFIRMATION.test((b.textContent || '').trim())
+    Array.from(dialogRoot.querySelectorAll('[role="button"], button')).find((b) =>
+      CONFIRM_LABELS.test((b.textContent || '').trim())
     );
   if (!confirmButton) {
     /*
      * Le libelle change : quand aucun ne repond, on remonte ceux qu'on a vus.
      * C'est ce qui a permis de trouver « Update », et ca coute une ligne.
      */
-    const vus = Array.from(boite.querySelectorAll('[role="button"], button'))
+    const seenLabels = Array.from(dialogRoot.querySelectorAll('[role="button"], button'))
       .map((b) => (b.textContent || '').trim())
       .filter(Boolean)
       .slice(0, 12);
@@ -676,16 +676,16 @@ async function writeAlts(alts, trace = {}) {
      * le disant plutot que de rendre l'onglet inutilisable. Une publication
      * sans alternative se rattrape ; un navigateur fige se subit.
      */
-    const BUDGET_TOUR_MS = 250;
+    const SWEEP_BUDGET_MS = 250;
     let buttons = [];
     let waited = 0;
     for (let attempt = 0; attempt < 90; attempt++) {
-      const depart = performance.now();
+      const startedAt = performance.now();
       buttons = altButtons();
-      const cout = performance.now() - depart;
+      const cost = performance.now() - startedAt;
 
-      if (cout > BUDGET_TOUR_MS) {
-        trace.coutBalayageMs = Math.round(cout);
+      if (cost > SWEEP_BUDGET_MS) {
+        trace.sweepCostMs = Math.round(cost);
         trace.arret = `balayage trop couteux (${Math.round(cout)} ms) — abandon avant de figer l'onglet`;
         buttons = [];
         break;
@@ -709,8 +709,8 @@ async function writeAlts(alts, trace = {}) {
       trace.pieces = !!document.querySelector('[data-testid="attachments"]');
       // Meme cadrage que `altButtons` : l'inventaire de diagnostic ne doit pas
       // reproduire le gel qu'il sert a expliquer.
-      const cadre = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
-      trace.candidates = Array.from(cadre.querySelectorAll('button, [role="button"], a'))
+      const modalRoot = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
+      trace.candidates = Array.from(modalRoot.querySelectorAll('button, [role="button"], a'))
         .filter((el) => el.getClientRects().length > 0)
         .map((el) => `${el.getAttribute('aria-label') || ''}|${(el.textContent || '').trim()}`.slice(0, 44))
         .filter((s) => s !== '|')
@@ -759,7 +759,7 @@ async function publier() {
 }
 
 /** Enchainement complet. `publier` est toujours un choix conscient. */
-async function compose({ texte, images, alts, publier: doitPublier, comptesAutorises, programmerLe }) {
+async function compose({ texte, images, alts, publier: shouldPublish, comptesAutorises, programmerLe }) {
   // Ce que le script a REELLEMENT recu : sans ca, un rapport a zero ne dit
   // pas si la charge etait vide ou si la jonction a echoue.
   const rapport = {
@@ -853,14 +853,14 @@ async function compose({ texte, images, alts, publier: doitPublier, comptesAutor
   if (programmerLe) {
     // L'attente du televersement a deja eu lieu plus haut : programmer trop
     // tot faisait repondre a X « The content of your post is invalid ».
-    rapport.horaire = await scheduleAtX(programmerLe, doitPublier);
+    rapport.horaire = await scheduleAtX(programmerLe, shouldPublish);
     // « Programme » veut dire parti chez X, pas « heure saisie » : c est la
     // difference que le premier essai avait effacee.
     rapport.programme = rapport.horaire.envoye === true;
     return rapport;
   }
 
-  if (doitPublier) rapport.publie = await publier();
+  if (shouldPublish) rapport.publie = await publier();
 
   return rapport;
 }
