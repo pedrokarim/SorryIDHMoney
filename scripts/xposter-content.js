@@ -632,10 +632,35 @@ async function writeAlts(alts, trace = {}) {
      * On patiente donc jusqu'a 45 s, et on note le delai reel : c'est la
      * mesure qui manquait pour regler cette fenetre sans deviner.
      */
+    /*
+     * ==Un balayage lent doit s'arreter, pas ralentir la page.==
+     *
+     * Cette boucle rend la main entre deux tours, elle ne bloque donc pas par
+     * elle-meme. Ce qui a fige l'onglet, c'est le cout d'un seul tour :
+     * `altButtons` balayait le document entier avec un recalcul de layout par
+     * element, soit plusieurs secondes de thread principal, quatre-vingt-dix
+     * fois de suite. Le cadrage sur la modale ramene ce cout a rien.
+     *
+     * On mesure quand meme. Si un tour depasse ce budget, c'est que le cadrage
+     * a saute — page differente, modale absente — et on prefere abandonner en
+     * le disant plutot que de rendre l'onglet inutilisable. Une publication
+     * sans alternative se rattrape ; un navigateur fige se subit.
+     */
+    const BUDGET_TOUR_MS = 250;
     let buttons = [];
     let waited = 0;
     for (let attempt = 0; attempt < 90; attempt++) {
+      const depart = performance.now();
       buttons = altButtons();
+      const cout = performance.now() - depart;
+
+      if (cout > BUDGET_TOUR_MS) {
+        trace.coutBalayageMs = Math.round(cout);
+        trace.arret = `balayage trop couteux (${Math.round(cout)} ms) — abandon avant de figer l'onglet`;
+        buttons = [];
+        break;
+      }
+
       if (buttons.length > i) break;
       await sleep(500);
       waited = (attempt + 1) * 500;
