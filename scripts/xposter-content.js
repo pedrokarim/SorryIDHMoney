@@ -362,7 +362,14 @@ async function scheduleAtX(quand, confirmer) {
 
   // X resume l'echeance en toutes lettres au-dessus du formulaire. C'est ce
   // que verra qui regarde, donc ce qu'on rapporte.
-  const resume = (document.body.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
+  /*
+   * ==Lire la modale, pas `document.body`.== `innerText` force un layout et
+   * reconstruit le texte de tout ce qu'il traverse : sur le fil de X, cela
+   * bloquait le thread principal a lui seul. Le resume vit dans la boite
+   * d'horaire, quelques dizaines d'elements plus bas.
+   */
+  const cadre = document.querySelector('[aria-modal="true"], [role="dialog"]') || document.body;
+  const resume = (cadre.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
 
   if (mismatches.length) {
     return { ok: false, erreur: `horaire non pris : ${ecarts.join(' ; ')}`, relu, resume, dejaOuverte };
@@ -517,6 +524,26 @@ function altButtons() {
   const out = [];
 
   /*
+   * ==Chercher dans la modale, jamais dans le document.==
+   *
+   * Le balayage ci-dessous portait sur `document`. Sur `x.com/home` le
+   * composeur est une modale posee sur le fil, qui compte des milliers de
+   * liens et de boutons : chaque tour lisait le `textContent` de tout le fil
+   * et forcait un recalcul de layout par element. Repete quatre-vingt-dix
+   * fois par l'attente de la pastille, l'onglet se figeait — Chrome affichait
+   * « Page ne repondant pas », et le canal de message mourait avec le
+   * renderer. Le rapport parlait alors d'un worker arrete : c'etait la
+   * consequence, pas la cause.
+   *
+   * La modale contient quelques dizaines d'elements. C'est la seule zone ou
+   * la pastille puisse se trouver, et le cout devient negligeable.
+   */
+  const root =
+    document.querySelector('[aria-modal="true"], [role="dialog"]') ||
+    document.querySelector('[data-testid="primaryColumn"]') ||
+    document;
+
+  /*
    * ==Ne pas revenir a `offsetParent`.== Il vaut `null` pour tout element
    * place sous un ancetre `position: fixed` — ce qu'est la modale de
    * composition de X. Le test rejetait donc en silence des boutons
@@ -532,7 +559,7 @@ function altButtons() {
     out.push(el);
   };
 
-  for (const s of SEL.altButton) document.querySelectorAll(s).forEach(push);
+  for (const s of SEL.altButton) root.querySelectorAll(s).forEach(push);
 
   /*
    * ==Constate sur capture, pas deduit== : X n'affiche pas de pastille ALT sur
@@ -553,10 +580,18 @@ function altButtons() {
    * comme un lien sans role explicite, ce qu'aucun de mes trois selecteurs
    * successifs ne pouvait atteindre.
    */
-  document.querySelectorAll('button, [role="button"], a').forEach((el) => {
+  root.querySelectorAll('button, [role="button"], a').forEach((el) => {
+    /*
+     * L'ordre des tests compte : `aria-label` est une lecture d'attribut,
+     * `textContent` une reconstruction de sous-arbre, et `getClientRects`
+     * — dans `push` — un recalcul de layout. On ne paie donc le cher qu'apres
+     * avoir elimine sur le bon marche.
+     */
     const label = (el.getAttribute('aria-label') || '').toLowerCase();
+    if (label.includes('descri')) return push(el);
+
     const texte = (el.textContent || '').trim();
-    if (label.includes('descri') || texte.toLowerCase().includes('description') || texte.toUpperCase() === 'ALT') {
+    if (texte.toLowerCase().includes('description') || texte.toUpperCase() === 'ALT') {
       push(el);
     }
   });
@@ -617,7 +652,10 @@ async function writeAlts(alts, trace = {}) {
        * libelle de la pastille apparaitra dedans.
        */
       trace.pieces = !!document.querySelector('[data-testid="attachments"]');
-      trace.candidates = Array.from(document.querySelectorAll('button, [role="button"], a'))
+      // Meme cadrage que `altButtons` : l'inventaire de diagnostic ne doit pas
+      // reproduire le gel qu'il sert a expliquer.
+      const cadre = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
+      trace.candidates = Array.from(cadre.querySelectorAll('button, [role="button"], a'))
         .filter((el) => el.getClientRects().length > 0)
         .map((el) => `${el.getAttribute('aria-label') || ''}|${(el.textContent || '').trim()}`.slice(0, 44))
         .filter((s) => s !== '|')
