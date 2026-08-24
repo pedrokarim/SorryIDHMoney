@@ -18,28 +18,28 @@
  *      arbitraire.
  */
 
-import { programmer, annuler, lister, executer, capturerComposeur, relancer as relancerPublication } from './xposter-queue.js';
-import { recupererTweets, programmesChezX } from './xposter-tweets.js';
+import { schedule, cancel, list, execute, captureComposer, replay } from './xposter-queue.js';
+import { fetchTweets, scheduledAtX } from './xposter-tweets.js';
 
 const LOG = '[XPoster]';
-const ALARME_VEILLE = 'xposter:veille';
+const IDLE_ALARM = 'xposter:veille';
 
-const REGLAGES = {
+const SETTINGS_DEFAULTS = {
   enableXPoster: false,
   xposterPort: 8787,
   xposterToken: '',
 };
 
-async function reglages() {
-  return new Promise((r) => chrome.storage.sync.get(REGLAGES, r));
+async function settings() {
+  return new Promise((r) => chrome.storage.sync.get(SETTINGS_DEFAULTS, r));
 }
 
 /** Actions autorisees. Tout le reste est refuse et journalise. */
 const ACTIONS = {
   ping: async () => ({ pong: true, version: 1 }),
-  programmer: async (charge) => programmer(charge),
-  annuler: async (charge) => annuler(charge.id),
-  lister: async () => lister(),
+  programmer: async (charge) => schedule(charge),
+  annuler: async (charge) => cancel(charge.id),
+  lister: async () => list(),
   /**
    * Rend une capture de l onglet visible.
    *
@@ -47,24 +47,24 @@ const ACTIONS = {
    * deduire d un rapport : un remplissage peut se dire reussi et avoir
    * produit quelque chose de tordu.
    */
-  capturer: () => capturerComposeur(),
+  capturer: () => captureComposer(),
 
   /** Rejoue une publication de l historique, sans la redeposer. */
-  relancer: (charge) => relancerPublication(charge.id),
+  relancer: (charge) => replay(charge.id),
 
   /*
    * Relit le fil publie. Strictement en lecture : sans session ouverte, X ne
    * montre que cinq posts puis un mur, et il devient impossible de savoir ce
    * qui est deja parti.
    */
-  tweets: (charge) => recupererTweets(charge),
+  tweets: (charge) => fetchTweets(charge),
 
   /** Ce que X garde en attente : invisible partout ailleurs. */
-  programmes: () => programmesChezX(),
+  programmes: () => scheduledAtX(),
 
   /** Compose tout de suite, sans passer par la file. */
   maintenant: async (charge) =>
-    executer({
+    execute({
       texte: charge.texte || '',
       images: charge.images || [],
       alts: charge.alts || [],
@@ -72,22 +72,22 @@ const ACTIONS = {
     }),
 };
 
-async function traiter(ordre) {
+async function handle(ordre) {
   const fn = ACTIONS[ordre.action];
   if (!fn) {
     console.warn(LOG, 'action refusee :', ordre.action);
     return { id: ordre.id, ok: false, erreur: `action inconnue : ${ordre.action}` };
   }
   try {
-    return { id: ordre.id, ok: true, resultat: await fn(ordre.charge || {}) };
+    return { id: ordre.id, ok: true, result: await fn(ordre.charge || {}) };
   } catch (err) {
     return { id: ordre.id, ok: false, erreur: String(err.message || err) };
   }
 }
 
 /** Un tour de sonde : demander, executer, rendre compte. */
-export async function sonder() {
-  const cfg = await reglages();
+export async function poll() {
+  const cfg = await settings();
   if (!cfg.enableXPoster || !cfg.xposterToken) return;
 
   const base = `http://127.0.0.1:${cfg.xposterPort}`;
@@ -110,8 +110,8 @@ export async function sonder() {
 
   if (!Array.isArray(ordres) || ordres.length === 0) return;
 
-  const resultats = [];
-  for (const ordre of ordres) resultats.push(await traiter(ordre));
+  const results = [];
+  for (const ordre of ordres) results.push(await handle(ordre));
 
   try {
     await fetch(`${base}/resultats`, {
@@ -120,17 +120,17 @@ export async function sonder() {
         'content-type': 'application/json',
         'x-xposter-token': cfg.xposterToken,
       },
-      body: JSON.stringify(resultats),
+      body: JSON.stringify(results),
     });
   } catch (err) {
     console.error(LOG, 'resultats non remis', err);
   }
 }
 
-export function installerVeille() {
-  chrome.alarms.create(ALARME_VEILLE, { periodInMinutes: 1 });
+export function installIdlePoll() {
+  chrome.alarms.create(IDLE_ALARM, { periodInMinutes: 1 });
 }
 
-export function estVeille(alarme) {
-  return alarme.name === ALARME_VEILLE;
+export function isIdleAlarm(alarm) {
+  return alarm.name === IDLE_ALARM;
 }

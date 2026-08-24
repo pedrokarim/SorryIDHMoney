@@ -17,26 +17,26 @@ import "./scripts/avb/avb-manager.js";
  * qu'une publication programmee parte meme si l'outil qui l'a deposee est
  * eteint.
  */
-import { sonder, installerVeille, estVeille } from "./scripts/xposter-bridge.js";
-import { surAlarme, annuler as annulerPublication, capturerComposeur, rearmer, relancer } from "./scripts/xposter-queue.js";
+import { poll, installIdlePoll, isIdleAlarm } from "./scripts/xposter-bridge.js";
+import { onAlarm as onXPosterAlarm, cancel as cancelPost, captureComposer, rearm, replay } from "./scripts/xposter-queue.js";
 
-installerVeille();
-sonder();
+installIdlePoll();
+poll();
 
-chrome.alarms.onAlarm.addListener((alarme) => {
+chrome.alarms.onAlarm.addListener((alarm) => {
   // L'alarme de veille rallume le worker et lui fait demander s'il y a du
   // travail ; les autres alarmes sont des publications programmees.
-  if (estVeille(alarme)) {
-    sonder();
+  if (isIdleAlarm(alarm)) {
+    poll();
     return;
   }
-  surAlarme(alarme);
+  onXPosterAlarm(alarm);
 });
 
 chrome.storage.onChanged.addListener((changes, zone) => {
   if (zone !== "sync") return;
   if ("enableXPoster" in changes || "xposterPort" in changes || "xposterToken" in changes) {
-    sonder();
+    poll();
   }
 });
 
@@ -268,14 +268,14 @@ async function getAnilistMediaInfo(search) {
 
 chrome.runtime.onStartup.addListener(() => {
   pruneExpiredAnilistCache();
-  rearmer();
+  rearm();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
   pruneExpiredAnilistCache();
   // Vaut aussi pour un simple rechargement de l extension : les alarmes sont
   // parties, la file est restee.
-  rearmer();
+  rearm();
 });
 
 // Listen for messages from the content script
@@ -337,19 +337,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "xposterCapturer":
       // Une page de l extension ne peut pas photographier le composeur
       // elle-meme : elle est l onglet actif au moment ou elle demande.
-      capturerComposeur()
+      captureComposer()
         .then((r) => sendResponse({ ok: true, ...r }))
         .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
       return true;
     case "xposterRelancer":
-      relancer(message.id)
+      replay(message.id)
         .then((rapport) => sendResponse({ ok: true, rapport }))
         .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
       return true;
     case "xposterAnnuler":
       // Vient de l ecran dedie, pas d une page web : les content scripts ne
       // connaissent pas cette action.
-      annulerPublication(message.id).then(() => sendResponse({ ok: true }));
+      cancelPost(message.id).then(() => sendResponse({ ok: true }));
       return true;
     case "openStatsPopup":
       chrome.windows.create({

@@ -12,11 +12,11 @@
  */
 
 const LOG = '[XPoster]';
-const CLE_FILE = 'xposterFile';
-const PREFIXE_ALARME = 'xposter:';
+const QUEUE_KEY = 'xposterFile';
+const ALARM_PREFIX = 'xposter:';
 
 /** Delai minimal d'une alarme MV3. En dessous, Chrome l'ignore. */
-const MINUTE_MIN = 0.5;
+const MIN_ALARM_MINUTES = 0.5;
 
 /**
  * Au-dela de ce retard, une echeance manquee n'est plus rattrapee.
@@ -25,13 +25,13 @@ const MINUTE_MIN = 0.5;
  * six heures plus tard parce que la machine etait eteinte, c'est publier
  * ailleurs que la ou on visait — de nuit, ou devant personne.
  */
-const RETARD_MAX = 30 * 60 * 1000;
+const MAX_LATENESS_MS = 30 * 60 * 1000;
 
 /**
  * Au-dela, une echeance qui n'a jamais rendu de rapport est abandonnee.
  *
  * Voir `keepWorkerAwake` : une composition qui tue le worker ne peut pas ecrire
- * son propre echec, et `rearmer` la relance au demarrage suivant. Sans ce
+ * son propre echec, et `rearm` la relance au demarrage suivant. Sans ce
  * compteur, elle rouvre le composeur indefiniment.
  */
 const MAX_ATTEMPTS = 2;
@@ -49,7 +49,7 @@ const MAX_ATTEMPTS = 2;
  * 24/08, tous le meme : « A listener indicated an asynchronous response by
  * returning true, but the message channel closed before a response was
  * received », puis l'entree restant « en attente » — le `catch` qui ecrit
- * l'echec n'ayant jamais eu lieu — et `rearmer` la relancant au demarrage
+ * l'echec n'ayant jamais eu lieu — et `rearm` la relancant au demarrage
  * suivant, qui tuait le worker a son tour. Le composeur se rouvrait en
  * boucle, visible dans la barre d'adresse.
  *
@@ -66,21 +66,21 @@ function keepWorkerAwake() {
   return () => clearInterval(heartbeat);
 }
 
-async function lireFile() {
-  const { [CLE_FILE]: file } = await chrome.storage.local.get({ [CLE_FILE]: [] });
-  return file;
+async function readQueue() {
+  const { [QUEUE_KEY]: queue } = await chrome.storage.local.get({ [QUEUE_KEY]: [] });
+  return queue;
 }
 
-async function ecrireFile(file) {
-  await chrome.storage.local.set({ [CLE_FILE]: file });
+async function writeQueue(queue) {
+  await chrome.storage.local.set({ [QUEUE_KEY]: queue });
 }
 
 /** Ajoute une publication et arme son reveil. */
-export async function programmer(entree) {
-  const file = await lireFile();
+export async function schedule(entry) {
+  const queue = await readQueue();
 
-  const id = entree.id || `p${Date.now()}${Math.floor(performance.now() % 1000)}`;
-  const quand = entree.quand ? new Date(entree.quand).getTime() : Date.now();
+  const id = entry.id || `p${Date.now()}${Math.floor(performance.now() % 1000)}`;
+  const quand = entry.quand ? new Date(entry.quand).getTime() : Date.now();
 
   /*
    * Qui tient l'horloge : l'extension, ou X.
@@ -96,27 +96,27 @@ export async function programmer(entree) {
   const { xposterModeProgrammation } = await new Promise((r) =>
     chrome.storage.sync.get({ xposterModeProgrammation: 'extension' }, r)
   );
-  const programmation = entree.programmation || xposterModeProgrammation;
+  const programmation = entry.programmation || xposterModeProgrammation;
 
-  const publication = {
+  const post = {
     id,
     quand,
     programmation,
-    texte: entree.texte || '',
-    images: entree.images || [],
-    alts: entree.alts || [],
-    publier: entree.publier === true,
+    texte: entry.texte || '',
+    images: entry.images || [],
+    alts: entry.alts || [],
+    publier: entry.publier === true,
     etat: 'en attente',
     depose: Date.now(),
   };
 
-  file.push(publication);
-  await ecrireFile(file);
+  queue.push(post);
+  await writeQueue(queue);
 
   if (programmation === 'x') {
     // Aucune alarme : l'echeance part chez X, tout de suite. Garder un reveil
     // en plus reposterait le meme contenu a l'heure dite.
-    const rapport = await executer(publication);
+    const rapport = await execute(post);
     /*
      * Le compte rendu du composeur est imbrique : `{ ok, rapport }`. On lisait
      * `rapport.programme` au premier niveau, donc toujours `undefined` — la
@@ -124,27 +124,27 @@ export async function programmer(entree) {
      * bien. Le seul degat etait un etat faux, mais c est precisement ce dont
      * on se sert pour savoir quoi refaire.
      */
-    publication.etat = rapport?.rapport?.programme
+    post.etat = rapport?.rapport?.programme
       ? 'confie a X'
       : rapport?.ok ? 'prepare' : 'echec';
-    publication.rapport = rapport;
-    publication.execute = Date.now();
-    await ecrireFile(file);
+    post.rapport = rapport;
+    post.execute = Date.now();
+    await writeQueue(queue);
     console.log(LOG, 'confie a X', id, new Date(quand).toISOString());
     return { id, quand, programmation, rapport };
   }
 
-  const minutes = Math.max(MINUTE_MIN, (quand - Date.now()) / 60000);
-  await chrome.alarms.create(PREFIXE_ALARME + id, { delayInMinutes: minutes });
+  const minutes = Math.max(MIN_ALARM_MINUTES, (quand - Date.now()) / 60000);
+  await chrome.alarms.create(ALARM_PREFIX + id, { delayInMinutes: minutes });
 
   console.log(LOG, 'programme', id, new Date(quand).toISOString());
   return { id, quand, programmation };
 }
 
-export async function annuler(id) {
-  const file = await lireFile();
-  await ecrireFile(file.filter((p) => p.id !== id));
-  await chrome.alarms.clear(PREFIXE_ALARME + id);
+export async function cancel(id) {
+  const queue = await readQueue();
+  await writeQueue(queue.filter((p) => p.id !== id));
+  await chrome.alarms.clear(ALARM_PREFIX + id);
   return true;
 }
 
@@ -159,15 +159,15 @@ export async function annuler(id) {
  * Les octets ne servaient qu'a la composition. Une fois celle-ci passee,
  * savoir combien d'images sont parties suffit a l'historique.
  */
-const sansOctets = (p) => ({
+const withoutBytes = (p) => ({
   ...p,
   images: [],
   nbImages: (p.images || []).length || p.nbImages || 0,
 });
 
-export async function lister() {
+export async function list() {
   // Un inventaire repart par le pont : il n'a pas a transporter les images.
-  return (await lireFile()).map(sansOctets);
+  return (await readQueue()).map(withoutBytes);
 }
 
 /**
@@ -177,8 +177,8 @@ export async function lister() {
  * stable que le composeur en surimpression du fil, qui n'existe qu'apres un
  * clic et disparait au moindre changement de route.
  */
-async function ongletComposeur() {
-  const existants = await chrome.tabs.query({ url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'] });
+async function composerTab() {
+  const existing = await chrome.tabs.query({ url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'] });
 
   /*
    * On ne reutilise qu'un composeur vide.
@@ -192,34 +192,34 @@ async function ongletComposeur() {
    * Un onglet qui ne repond pas est compte comme occupe : ne pas savoir n'est
    * pas une raison d'ecrire dedans.
    */
-  for (const onglet of existants) {
-    let libre = false;
+  for (const tab of existing) {
+    let free = false;
     try {
-      const etat = await chrome.tabs.sendMessage(onglet.id, { action: 'xposterEtat' });
-      libre = etat?.vide === true;
+      const etat = await chrome.tabs.sendMessage(tab.id, { action: 'xposterEtat' });
+      free = etat?.vide === true;
     } catch {
-      libre = false;
+      free = false;
     }
-    if (libre) {
-      await chrome.tabs.update(onglet.id, { active: true });
-      return onglet;
+    if (free) {
+      await chrome.tabs.update(tab.id, { active: true });
+      return tab;
     }
   }
 
-  const onglet = await chrome.tabs.create({ url: 'https://x.com/compose/post', active: true });
+  const tab = await chrome.tabs.create({ url: 'https://x.com/compose/post', active: true });
 
   // On attend que le content script soit en place : il repond a un ping.
   for (let i = 0; i < 40; i++) {
     await new Promise((r) => setTimeout(r, 400));
     try {
-      const etat = await chrome.tabs.get(onglet.id);
+      const etat = await chrome.tabs.get(tab.id);
       if (etat.status === 'complete') break;
     } catch {
       throw new Error('onglet ferme avant la composition');
     }
   }
   await new Promise((r) => setTimeout(r, 1500));
-  return onglet;
+  return tab;
 }
 
 /**
@@ -234,17 +234,17 @@ async function ongletComposeur() {
  * resultat. L'historique dit ou en est chaque publication, pas combien de
  * fois on s'y est repris.
  */
-export async function relancer(id) {
-  const file = await lireFile();
-  const publication = file.find((p) => p.id === id);
-  if (!publication) throw new Error('publication introuvable');
-  if (!publication.images?.length && publication.nbImages) {
+export async function replay(id) {
+  const queue = await readQueue();
+  const post = queue.find((p) => p.id === id);
+  if (!post) throw new Error('publication introuvable');
+  if (!post.images?.length && post.nbImages) {
     // Les octets ont ete purges : rejouer produirait un post ampute, ce qui
     // est pire que de refuser.
     throw new Error('images purgees de l historique — redeposer depuis l outil');
   }
 
-  const rapport = await executer(publication);
+  const rapport = await execute(post);
   /*
    * Meme lecture qu'au depot : `programme` vit dans `rapport.rapport`, pas au
    * premier niveau. La correction du 20/08 avait ete posee sur le chemin du
@@ -252,15 +252,15 @@ export async function relancer(id) {
    * « preparee », alors que X l'avait gardee. Un etat faux ici est couteux :
    * c'est exactement ce qu'on regarde pour decider quoi refaire.
    */
-  publication.etat = rapport?.rapport?.programme
+  post.etat = rapport?.rapport?.programme
     ? 'confie a X'
-    : rapport?.ok ? (publication.publier ? 'publie' : 'prepare') : 'echec';
-  publication.rapport = rapport;
-  publication.execute = Date.now();
+    : rapport?.ok ? (post.publier ? 'publie' : 'prepare') : 'echec';
+  post.rapport = rapport;
+  post.execute = Date.now();
   // Une relance a la main repart d'une ardoise propre : le compteur ne sert
   // qu'a arreter les reveils en boucle, pas a brider une decision humaine.
-  publication.attempts = 0;
-  await ecrireFile(file);
+  post.attempts = 0;
+  await writeQueue(queue);
   return rapport;
 }
 
@@ -275,12 +275,12 @@ export async function relancer(id) {
  * marquee manquee. Le contraire — publier a l'improviste des heures apres
  * l'heure choisie — serait une surprise, et une mauvaise.
  */
-export async function rearmer() {
-  const file = await lireFile();
-  let modifie = false;
+export async function rearm() {
+  const queue = await readQueue();
+  let changed = false;
 
-  for (const publication of file) {
-    if (publication.etat !== 'en attente') continue;
+  for (const post of queue) {
+    if (post.etat !== 'en attente') continue;
 
     /*
      * Une echeance confiee a X n'a jamais de reveil : la remise se fait au
@@ -298,38 +298,38 @@ export async function rearmer() {
      * ce qui est le bon niveau de decision : personne ne sait ici si X a
      * garde quelque chose avant la coupure.
      */
-    if (publication.programmation === 'x') {
-      publication.etat = 'echec';
-      publication.execute = Date.now();
-      publication.rapport = {
+    if (post.programmation === 'x') {
+      post.etat = 'echec';
+      post.execute = Date.now();
+      post.rapport = {
         ok: false,
         erreur: 'composition interrompue — verifier chez X avant de relancer',
       };
-      modifie = true;
-      console.warn(LOG, 'interrompue', publication.id);
+      changed = true;
+      console.warn(LOG, 'interrompue', post.id);
       continue;
     }
 
-    const retard = Date.now() - publication.quand;
-    if (retard > RETARD_MAX) {
-      publication.etat = 'manquee';
-      publication.execute = Date.now();
-      publication.rapport = {
+    const lateness = Date.now() - post.quand;
+    if (lateness > MAX_LATENESS_MS) {
+      post.etat = 'manquee';
+      post.execute = Date.now();
+      post.rapport = {
         ok: false,
         erreur: `echeance depassee de ${Math.round(retard / 60000)} min — navigateur eteint ?`,
       };
-      modifie = true;
-      console.warn(LOG, 'manquee', publication.id);
+      changed = true;
+      console.warn(LOG, 'manquee', post.id);
       continue;
     }
 
-    await chrome.alarms.create(PREFIXE_ALARME + publication.id, {
-      delayInMinutes: Math.max(MINUTE_MIN, (publication.quand - Date.now()) / 60000),
+    await chrome.alarms.create(ALARM_PREFIX + post.id, {
+      delayInMinutes: Math.max(MIN_ALARM_MINUTES, (post.quand - Date.now()) / 60000),
     });
   }
 
-  if (modifie) await ecrireFile(file);
-  return file.filter((p) => p.etat === 'en attente').length;
+  if (changed) await writeQueue(queue);
+  return queue.filter((p) => p.etat === 'en attente').length;
 }
 
 /**
@@ -344,25 +344,25 @@ export async function rearmer() {
  * On n'ouvre pas de composeur s'il n'y en a pas : demander a voir n'est pas
  * demander a ecrire.
  */
-export async function capturerComposeur() {
-  const onglets = await chrome.tabs.query({
+export async function captureComposer() {
+  const tabs = await chrome.tabs.query({
     // Apres remplissage, X peut avoir change d URL sans fermer le composeur :
     // on regarde donc tout x.com, et on prefere une route de composition.
     url: ['https://x.com/*', 'https://twitter.com/*'],
   });
-  if (!onglets.length) throw new Error('aucun onglet X ouvert');
-  onglets.sort((a, b) => (b.url.includes('/compose/') ? 1 : 0) - (a.url.includes('/compose/') ? 1 : 0));
+  if (!tabs.length) throw new Error('aucun onglet X ouvert');
+  tabs.sort((a, b) => (b.url.includes('/compose/') ? 1 : 0) - (a.url.includes('/compose/') ? 1 : 0));
 
-  const onglet = onglets[0];
-  if (!onglet.active) {
-    await chrome.tabs.update(onglet.id, { active: true });
+  const tab = tabs[0];
+  if (!tab.active) {
+    await chrome.tabs.update(tab.id, { active: true });
     // Le passage au premier plan n'est pas instantane : sans ce delai, le
     // cliche montre encore l'onglet precedent.
     await new Promise((r) => setTimeout(r, 250));
   }
 
-  const dataUrl = await chrome.tabs.captureVisibleTab(onglet.windowId, { format: 'png' });
-  return { dataUrl, url: onglet.url };
+  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+  return { dataUrl, url: tab.url };
 }
 
 /**
@@ -373,41 +373,41 @@ export async function capturerComposeur() {
  * case, l'extension se contente de preparer et laisse la main. C'est le seul
  * garde-fou qui ne depende pas de ce qu'on lui envoie.
  */
-export async function executer(publication) {
+export async function execute(post) {
   // L'ouverture de l'onglet compte deja pres de vingt secondes avant meme la
   // composition : le battement couvre toute la fonction, pas le seul envoi.
   const release = keepWorkerAwake();
   try {
-    return await executerInterne(publication);
+    return await executeInternal(post);
   } finally {
     release();
   }
 }
 
-async function executerInterne(publication) {
+async function executeInternal(post) {
   const { xposterAutoriserPublication, xposterComptes } = await new Promise((r) =>
     chrome.storage.sync.get({ xposterAutoriserPublication: false, xposterComptes: [] }, r)
   );
 
-  const publier = publication.publier === true && xposterAutoriserPublication === true;
-  if (publication.publier && !publier) {
+  const publier = post.publier === true && xposterAutoriserPublication === true;
+  if (post.publier && !publier) {
     console.warn(LOG, 'publication demandee mais non autorisee — preparation seule');
   }
 
-  const onglet = await ongletComposeur();
+  const tab = await composerTab();
 
-  const rapport = await chrome.tabs.sendMessage(onglet.id, {
+  const rapport = await chrome.tabs.sendMessage(tab.id, {
     action: 'xposterComposer',
     charge: {
-      texte: publication.texte,
-      images: publication.images,
-      alts: publication.alts,
+      texte: post.texte,
+      images: post.images,
+      alts: post.alts,
       publier,
       // La liste vit dans les reglages, jamais dans la charge : une demande ne
       // doit pas pouvoir s'autoriser elle-meme un compte.
       comptesAutorises: xposterComptes,
       // Heure voulue, transmise seulement quand c'est X qui doit programmer.
-      programmerLe: publication.programmation === 'x' ? publication.quand : null,
+      programmerLe: post.programmation === 'x' ? post.quand : null,
     },
   });
 
@@ -415,13 +415,13 @@ async function executerInterne(publication) {
 }
 
 /** Reveil : retrouve la publication, l'execute, note le resultat. */
-export async function surAlarme(alarme) {
-  if (!alarme.name.startsWith(PREFIXE_ALARME)) return;
-  const id = alarme.name.slice(PREFIXE_ALARME.length);
+export async function onAlarm(alarm) {
+  if (!alarm.name.startsWith(ALARM_PREFIX)) return;
+  const id = alarm.name.slice(ALARM_PREFIX.length);
 
-  const file = await lireFile();
-  const publication = file.find((p) => p.id === id);
-  if (!publication) return;
+  const queue = await readQueue();
+  const post = queue.find((p) => p.id === id);
+  if (!post) return;
 
   /*
    * On compte l'essai avant de le tenter, et on l'ecrit immediatement.
@@ -431,39 +431,39 @@ export async function surAlarme(alarme) {
    * trace. Un compteur pose apres l'appel aurait le meme sort, et la boucle
    * qu'il doit arreter le remettrait a zero a chaque tour.
    */
-  publication.attempts = (publication.attempts || 0) + 1;
-  if (publication.attempts > MAX_ATTEMPTS) {
-    publication.etat = 'echec';
-    publication.execute = Date.now();
-    publication.rapport = {
+  post.attempts = (post.attempts || 0) + 1;
+  if (post.attempts > MAX_ATTEMPTS) {
+    post.etat = 'echec';
+    post.execute = Date.now();
+    post.rapport = {
       ok: false,
       erreur: `abandonnee apres ${MAX_ATTEMPTS} tentatives — le composeur n a jamais rendu son rapport`,
     };
-    await ecrireFile(file);
+    await writeQueue(queue);
     console.warn(LOG, 'abandon', id);
     return;
   }
-  await ecrireFile(file);
+  await writeQueue(queue);
 
   try {
-    const rapport = await executer(publication);
-    publication.etat = rapport?.ok
-      ? (publication.publier ? 'publie' : 'prepare')
+    const rapport = await execute(post);
+    post.etat = rapport?.ok
+      ? (post.publier ? 'publie' : 'prepare')
       : 'echec';
-    publication.rapport = rapport;
+    post.rapport = rapport;
   } catch (err) {
     // On garde l'entree en echec plutot que de la supprimer : sans trace,
     // une publication ratee disparait sans que personne ne le sache.
-    publication.etat = 'echec';
-    publication.rapport = { ok: false, erreur: String(err.message || err) };
+    post.etat = 'echec';
+    post.rapport = { ok: false, erreur: String(err.message || err) };
     console.error(LOG, 'echec', id, err);
   }
 
-  publication.execute = Date.now();
+  post.execute = Date.now();
 
   // On garde les vingt dernieres executions et tout ce qui attend encore :
   // sans purge, la file grossit indefiniment dans le stockage local.
-  const attente = file.filter((p) => p.etat === 'en attente');
+  const pending = queue.filter((p) => p.etat === 'en attente');
   /*
    * Les trois dernieres executions gardent leurs octets, les suivantes non.
    *
@@ -474,11 +474,11 @@ export async function surAlarme(alarme) {
    * reel : on relance ce qui vient d'echouer, pas ce qui date de trois
    * semaines.
    */
-  const finies = file
+  const done = queue
     .filter((p) => p.etat !== 'en attente')
     .sort((a, b) => (b.execute || 0) - (a.execute || 0))
     .slice(0, 20)
-    .map((p, rang) => (rang < 3 ? p : sansOctets(p)));
+    .map((p, rang) => (rang < 3 ? p : withoutBytes(p)));
 
-  await ecrireFile([...attente, ...finies]);
+  await writeQueue([...pending, ...done]);
 }

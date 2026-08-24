@@ -18,10 +18,10 @@
 const LOG = '[XPoster]';
 
 /** La page ou X garde ce qu il doit publier plus tard. */
-const URL_PROGRAMMES = 'https://x.com/compose/post/unsent/scheduled';
+const SCHEDULED_URL = 'https://x.com/compose/post/unsent/scheduled';
 
 /** Au-dela, on rend ce qu'on a plutot que de faire defiler indefiniment. */
-const TOURS_MAX = 150;
+const MAX_ROUNDS = 150;
 
 /**
  * Le releve, execute dans la page.
@@ -34,10 +34,10 @@ const TOURS_MAX = 150;
  * DOM. On releve donc a chaque tour et on accumule dans une table, sinon on
  * ne garderait que le bas de la page.
  */
-function releverDansLaPage(toursMax, maximum) {
-  const vus = new Map();
+function readFromPage(toursMax, cap) {
+  const seen = new Map();
 
-  const noter = () => {
+  const record = () => {
     for (const article of document.querySelectorAll('article')) {
       const lien = [...article.querySelectorAll('a')]
         .map((a) => a.getAttribute('href') || '')
@@ -45,13 +45,13 @@ function releverDansLaPage(toursMax, maximum) {
       if (!lien) continue;
 
       const id = lien.match(/\/status\/(\d+)/)[1];
-      if (vus.has(id)) continue;
+      if (seen.has(id)) continue;
 
       const balise = article.querySelector('time[datetime]');
       const texte = article.querySelector('[data-testid="tweetText"]');
       const brut = article.innerText || '';
 
-      vus.set(id, {
+      seen.set(id, {
         id,
         lien: 'https://x.com' + lien.split('/photo/')[0],
         date: balise ? balise.getAttribute('datetime') : null,
@@ -77,9 +77,9 @@ function releverDansLaPage(toursMax, maximum) {
     let stagne = 0;
 
     for (let tour = 0; tour < toursMax; tour++) {
-      const avant = vus.size;
-      noter();
-      if (maximum && vus.size >= maximum) break;
+      const avant = seen.size;
+      record();
+      if (cap && seen.size >= cap) break;
 
       /*
        * Par petits pas, et surtout pas jusqu'en bas d'un coup.
@@ -98,18 +98,18 @@ function releverDansLaPage(toursMax, maximum) {
        * quand elle se remplit — s'y fier arretait le releve au bout de trois
        * tours, sur les quatre posts deja affiches.
        */
-      stagne = vus.size === avant ? stagne + 1 : 0;
+      stagne = seen.size === avant ? stagne + 1 : 0;
       if (stagne >= 4) break;
     }
 
-    noter();
+    record();
 
     const mur = /Continuer sur X|Connectez.vous ou inscrivez|Sign in to X/i.test(
       document.body.innerText
     );
 
     return {
-      tweets: [...vus.values()].sort((a, b) => b.id.localeCompare(a.id, 'en', { numeric: true })),
+      tweets: [...seen.values()].sort((a, b) => b.id.localeCompare(a.id, 'en', { numeric: true })),
       mur,
       annonce: (document.body.innerText.match(/([\d\s.,]+)\s*(posts|Post)/) || [])[1] || null,
     };
@@ -127,20 +127,20 @@ function releverDansLaPage(toursMax, maximum) {
  * Lecture seule, comme le releve du fil. La suppression reste un geste de la
  * main : elle se fait sur cette page, ou l'on voit ce qu'on supprime.
  */
-export async function programmesChezX() {
+export async function scheduledAtX() {
   const [precedent] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const onglet = await chrome.tabs.create({ url: URL_PROGRAMMES, active: true });
+  const tab = await chrome.tabs.create({ url: SCHEDULED_URL, active: true });
 
   try {
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 400));
-      const etat = await chrome.tabs.get(onglet.id);
+      const etat = await chrome.tabs.get(tab.id);
       if (etat.status === 'complete') break;
     }
     await new Promise((r) => setTimeout(r, 2600));
 
-    const [resultat] = await chrome.scripting.executeScript({
-      target: { tabId: onglet.id },
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
       func: () => {
         /*
          * La liste s'affiche dans une fenetre posee sur le fil d'accueil.
@@ -156,10 +156,10 @@ export async function programmesChezX() {
           document.querySelector('[role="dialog"]');
 
         if (!fenetre) {
-          return { entrees: [], vide: false, erreur: 'fenetre des publications programmees absente' };
+          return { entries: [], vide: false, erreur: 'fenetre des publications programmees absente' };
         }
 
-        const texteFenetre = fenetre.innerText || '';
+        const modalText = fenetre.innerText || '';
 
         /*
          * On decoupe le texte de la fenetre, on n'enumere pas des elements.
@@ -172,28 +172,28 @@ export async function programmesChezX() {
          * l'utilisateur lit.
          */
         const MARQUEUR = /^(Will send on|Sera envoy[ée].*)\b/;
-        const lignes = texteFenetre.split('\n').map((l) => l.trim());
-        const entrees = [];
+        const lignes = modalText.split('\n').map((l) => l.trim());
+        const entries = [];
 
         for (const ligne of lignes) {
-          if (MARQUEUR.test(ligne)) entrees.push({ annonce: ligne, texte: '' });
-          else if (entrees.length && ligne) {
-            const courante = entrees[entrees.length - 1];
+          if (MARQUEUR.test(ligne)) entries.push({ annonce: ligne, texte: '' });
+          else if (entries.length && ligne) {
+            const courante = entries[entries.length - 1];
             courante.texte = courante.texte ? courante.texte + '\n' + ligne : ligne;
           }
         }
 
         return {
-          entrees,
-          vide: /aren.t any|n.avez aucun|no scheduled|rien de programm/i.test(texteFenetre),
-          apercu: texteFenetre.slice(0, 300),
+          entries,
+          vide: /aren.t any|n.avez aucun|no scheduled|rien de programm/i.test(modalText),
+          apercu: modalText.slice(0, 300),
         };
       },
     });
 
-    const { entrees, vide, erreur, apercu } = resultat.result;
-    console.log(LOG, entrees.length, 'post(s) programme(s) chez X');
-    return { total: entrees.length, vide, erreur, apercu, url: URL_PROGRAMMES, entrees };
+    const { entries, vide, erreur, apercu } = result.result;
+    console.log(LOG, entries.length, 'post(s) programme(s) chez X');
+    return { total: entries.length, vide, erreur, apercu, url: SCHEDULED_URL, entries };
   } catch (err) {
     // L'onglet reste ouvert meme en cas d'echec : c'est la page ou l'on
     // supprime, autant qu'elle soit deja sous la main pour regarder.
@@ -213,21 +213,21 @@ export async function programmesChezX() {
  * on referme celui qu'on a ouvert. S'il etait deja ouvert, on le laisse : il
  * ne nous appartient pas.
  */
-export async function recupererTweets(charge = {}) {
+export async function fetchTweets(charge = {}) {
   const compte = (charge.compte || 'ascencia64').replace(/^@/, '');
-  const maximum = charge.maximum || 0;
+  const cap = charge.cap || 0;
   const url = `https://x.com/${compte}`;
 
   const [precedent] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const ouverts = await chrome.tabs.query({ url: [`https://x.com/${compte}`, `https://x.com/${compte}?*`] });
-  const deja = ouverts.length > 0;
-  const onglet = deja ? ouverts[0] : await chrome.tabs.create({ url, active: true });
+  const opened = await chrome.tabs.query({ url: [`https://x.com/${compte}`, `https://x.com/${compte}?*`] });
+  const already = opened.length > 0;
+  const tab = already ? opened[0] : await chrome.tabs.create({ url, active: true });
 
   try {
-    if (!deja) {
+    if (!already) {
       for (let i = 0; i < 40; i++) {
         await new Promise((r) => setTimeout(r, 400));
-        const etat = await chrome.tabs.get(onglet.id);
+        const etat = await chrome.tabs.get(tab.id);
         if (etat.status === 'complete') break;
       }
       // Le fil arrive apres le squelette : sans cette pause, on releve une
@@ -235,13 +235,13 @@ export async function recupererTweets(charge = {}) {
       await new Promise((r) => setTimeout(r, 2500));
     }
 
-    const [resultat] = await chrome.scripting.executeScript({
-      target: { tabId: onglet.id },
-      func: releverDansLaPage,
-      args: [TOURS_MAX, maximum],
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: readFromPage,
+      args: [MAX_ROUNDS, cap],
     });
 
-    const { tweets, mur, annonce } = resultat.result;
+    const { tweets, mur, annonce } = result.result;
     console.log(LOG, 'releve', tweets.length, 'posts de @' + compte);
 
     return {
@@ -254,9 +254,9 @@ export async function recupererTweets(charge = {}) {
       tweets,
     };
   } finally {
-    if (!deja) {
+    if (!already) {
       try {
-        await chrome.tabs.remove(onglet.id);
+        await chrome.tabs.remove(tab.id);
       } catch {
         // Onglet deja ferme a la main : rien a reparer.
       }

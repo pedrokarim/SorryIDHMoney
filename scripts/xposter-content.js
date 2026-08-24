@@ -25,32 +25,32 @@ const LOG = '[XPoster]';
 
 /** Selecteurs, du plus stable au plus fragile. */
 const SEL = {
-  zoneTexte: [
+  textArea: [
     '[data-testid="tweetTextarea_0"]',
     '[role="textbox"][contenteditable="true"]',
     '.public-DraftEditor-content',
   ],
-  champFichier: [
+  fileField: [
     '[data-testid="fileInput"]',
     'input[type="file"][accept*="image"]',
     'input[type="file"]',
   ],
-  boutonPoster: [
+  postButton: [
     '[data-testid="tweetButtonInline"]',
     '[data-testid="tweetButton"]',
   ],
-  boutonHoraire: ['[data-testid="scheduleOption"]', 'button[aria-label*="chedule"]'],
-  confirmerHoraire: [
+  scheduleButton: ['[data-testid="scheduleOption"]', 'button[aria-label*="chedule"]'],
+  confirmScheduleButton: [
     '[data-testid="scheduledConfirmationPrimaryAction"]',
     '[data-testid="Confirmation_Dialog_Confirm"]',
   ],
-  boutonAlt: ['[data-testid="altTextButton"]', 'button[aria-label*="escription"]'],
-  champAlt: ['[data-testid="altTextInput"]', 'textarea[aria-label*="escription"]'],
-  validerAlt: ['[data-testid="Sheet"] [role="button"][data-testid="applyButton"]',
+  altButton: ['[data-testid="altTextButton"]', 'button[aria-label*="escription"]'],
+  altField: ['[data-testid="altTextInput"]', 'textarea[aria-label*="escription"]'],
+  altApplyButton: ['[data-testid="Sheet"] [role="button"][data-testid="applyButton"]',
                '[data-testid="applyButton"]'],
 };
 
-const dors = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Quel compte est aux commandes de cette page.
@@ -64,13 +64,13 @@ const dors = (ms) => new Promise((r) => setTimeout(r, ms));
  * C'est cette distinction qui compte : on autorise des identifiants, on
  * affiche des pseudos.
  */
-function compteActif() {
+function activeAccount() {
   const cookie = (document.cookie.match(/(?:^|;\s*)twid=([^;]+)/) || [])[1] || '';
   const id = (decodeURIComponent(cookie).match(/u=(\d+)/) || [])[1] || null;
 
   let pseudo = null;
-  const bouton = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
-  if (bouton) pseudo = (bouton.innerText.match(/@([A-Za-z0-9_]+)/) || [])[1] || null;
+  const button = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+  if (button) pseudo = (button.innerText.match(/@([A-Za-z0-9_]+)/) || [])[1] || null;
   if (!pseudo) {
     const lien = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
     const href = lien && lien.getAttribute('href');
@@ -81,7 +81,7 @@ function compteActif() {
 }
 
 /** Premier element trouve parmi une liste de selecteurs. */
-function trouver(cles) {
+function find(cles) {
   for (const sel of SEL[cles] || []) {
     const el = document.querySelector(sel);
     if (el) return el;
@@ -90,12 +90,12 @@ function trouver(cles) {
 }
 
 /** Attend qu'un element apparaisse, ou rend null au bout du delai. */
-async function attendre(cles, delai = 8000) {
+async function waitFor(cles, delai = 8000) {
   const fin = Date.now() + delai;
   while (Date.now() < fin) {
-    const el = trouver(cles);
+    const el = find(cles);
     if (el) return el;
-    await dors(150);
+    await sleep(150);
   }
   return null;
 }
@@ -111,27 +111,27 @@ async function attendre(cles, delai = 8000) {
  * On prend donc tous les candidats et on garde celui qui est visible et
  * actif, en preferant celui qui se trouve dans la fenetre.
  */
-function boutonEnvoi() {
-  const candidats = SEL.boutonPoster
+function sendButton() {
+  const candidates = SEL.postButton
     .flatMap((sel) => Array.from(document.querySelectorAll(sel)))
     // `offsetParent` vaut `null` sous la modale, qui est `position: fixed`.
     .filter((b) => b.getClientRects().length > 0 && b.getAttribute('aria-disabled') !== 'true');
 
-  const fenetre = document.querySelector('[aria-modal="true"], [role="dialog"]');
-  return (fenetre && candidats.find((b) => fenetre.contains(b))) || candidats[0] || null;
+  const modal = document.querySelector('[aria-modal="true"], [role="dialog"]');
+  return (modal && candidates.find((b) => modal.contains(b))) || candidates[0] || null;
 }
 
 /** Vide le composeur avant d ecrire, pour ne jamais ajouter a du residu. */
-async function viderComposeur(zone) {
-  zone.focus();
+async function clearComposer(area) {
+  area.focus();
   document.execCommand('selectAll', false, null);
   document.execCommand('delete', false, null);
-  await dors(120);
+  await sleep(120);
 }
 
 /** Texte reellement present dans le composeur, sauts de ligne normalises. */
-function texteActuel(zone) {
-  return (zone.innerText || zone.textContent || '').trim();
+function currentText(area) {
+  return (area.innerText || area.textContent || '').trim();
 }
 
 /**
@@ -147,29 +147,29 @@ function texteActuel(zone) {
  * Et on **verifie** : un composeur qui contient autre chose que ce qu on a
  * demande doit se voir dans le rapport, pas partir en publication.
  */
-async function ecrireTexte(texte) {
-  const zone = await attendre('zoneTexte');
-  if (!zone) throw new Error('composeur introuvable');
+async function writeText(texte) {
+  const area = await waitFor('textArea');
+  if (!area) throw new Error('composeur introuvable');
 
-  await viderComposeur(zone);
+  await clearComposer(area);
 
-  const coller = () => {
+  const paste = () => {
     const dt = new DataTransfer();
     dt.setData('text/plain', texte);
-    zone.dispatchEvent(
+    area.dispatchEvent(
       new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })
     );
   };
 
-  coller();
-  await dors(400);
+  paste();
+  await sleep(400);
 
   // Comparaison indulgente sur les espaces : l editeur normalise, et on ne
   // veut pas echouer sur une nuance d espacement.
-  const attendu = texte.replace(new RegExp("\\s+", 'g'), ' ').trim();
-  const obtenu = texteActuel(zone).replace(new RegExp("\\s+", 'g'), ' ').trim();
+  const waited = texte.replace(new RegExp("\\s+", 'g'), ' ').trim();
+  const got = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
 
-  if (obtenu === attendu) return { ok: true, methode: 'collage' };
+  if (got === waited) return { ok: true, methode: 'collage' };
 
   /*
    * Le collage echoue a chaque fois, et ce n'est pas une anomalie.
@@ -185,30 +185,30 @@ async function ecrireTexte(texte) {
    * produit une URL repetee sept fois. D'ou la verification qui suit.
    */
   console.debug(LOG, 'collage ignore par l editeur, repli sur insertText');
-  await viderComposeur(zone);
+  await clearComposer(area);
   document.execCommand('insertText', false, texte);
-  await dors(400);
+  await sleep(400);
 
-  const obtenu2 = texteActuel(zone).replace(new RegExp("\\s+", 'g'), ' ').trim();
-  if (obtenu2 === attendu) return { ok: true, methode: 'insertText' };
+  const obtenu2 = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
+  if (obtenu2 === waited) return { ok: true, methode: 'insertText' };
 
   // On ne laisse pas un composeur a moitie rempli sans le dire.
   return {
     ok: false,
     methode: 'aucune',
-    attendu: attendu.slice(0, 120),
-    obtenu: obtenu2.slice(0, 120),
+    waited: waited.slice(0, 120),
+    got: obtenu2.slice(0, 120),
   };
 }
 
 /** Transforme une image encodee en `File`, seul type accepte par le champ. */
-function versFichier(dataUrl, nom) {
+function toFile(dataUrl, nom) {
   const [entete, base64] = dataUrl.split(',');
   const type = (entete.match(/data:([^;]+)/) || [, 'image/png'])[1];
-  const binaire = atob(base64);
-  const octets = new Uint8Array(binaire.length);
-  for (let i = 0; i < binaire.length; i++) octets[i] = binaire.charCodeAt(i);
-  return new File([octets], nom || 'image.png', { type });
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new File([bytes], nom || 'image.png', { type });
 }
 
 /**
@@ -223,7 +223,7 @@ function versFichier(dataUrl, nom) {
  * l'horaire est saisi et le composeur attend — meme regle que partout
  * ailleurs ici : on prepare, la derniere main revient a quelqu'un.
  */
-async function programmerChezX(quand, confirmer) {
+async function scheduleAtX(quand, confirmer) {
   const date = new Date(quand);
 
   /*
@@ -235,9 +235,9 @@ async function programmerChezX(quand, confirmer) {
   let dejaOuverte = selects.length >= 5;
 
   if (!dejaOuverte) {
-    const bouton = await attendre('boutonHoraire', 6000);
-    if (!bouton) return { ok: false, erreur: 'bouton horaire introuvable' };
-    bouton.click();
+    const button = await waitFor('scheduleButton', 6000);
+    if (!button) return { ok: false, erreur: 'bouton horaire introuvable' };
+    button.click();
 
     /*
      * On attendait 900 ms fixes. C'est suffisant sur un composeur vide, pas
@@ -245,15 +245,15 @@ async function programmerChezX(quand, confirmer) {
      * conclu a son absence, ==sur un post que X aurait accepte de programmer==.
      * On attend donc que les cinq listes existent, jusqu'a six secondes.
      */
-    for (let essai = 0; essai < 12; essai++) {
-      await dors(500);
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await sleep(500);
       selects = Array.from(document.querySelectorAll('select'));
       if (selects.length >= 5) break;
     }
   }
   if (selects.length < 5) return { ok: false, erreur: `formulaire d horaire absent (${selects.length} champs)` };
 
-  const poser = (select, valeur) => {
+  const apply = (select, valeur) => {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
     setter.call(select, String(valeur));
     select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -273,7 +273,7 @@ async function programmerChezX(quand, confirmer) {
    * l'ordre d'affichage — et verifies quand meme, parce qu'ecrire un jour
    * dans le champ du mois ne se verrait qu'a la publication.
    */
-  const decrire = (s) => {
+  const describe = (s) => {
     /*
      * L'option vide de tete ne compte pas.
      *
@@ -282,48 +282,48 @@ async function programmerChezX(quand, confirmer) {
      * jours, soixante et une minutes, et plus rien ne se reconnaissait.
      */
     const options = Array.from(s.options).filter((o) => o.value !== '' && o.value != null);
-    const valeurs = options.map((o) => o.value);
-    const nombres = valeurs.map((v) => parseInt(v, 10)).filter((n) => !isNaN(n));
+    const values = options.map((o) => o.value);
+    const nombres = values.map((v) => parseInt(v, 10)).filter((n) => !isNaN(n));
     return {
       select: s,
       options,
-      taille: valeurs.length,
-      tousNombres: nombres.length === valeurs.length && valeurs.length > 0,
+      taille: values.length,
+      tousNombres: nombres.length === values.length && values.length > 0,
       min: nombres.length ? Math.min(...nombres) : null,
       max: nombres.length ? Math.max(...nombres) : null,
     };
   };
 
-  const formes = selects.map(decrire);
-  const annee = formes.find((f) => f.tousNombres && f.min >= 2000 && f.max < 2100 && f.taille <= 10);
-  const minute = formes.find((f) => f.taille === 60);
-  const jour = formes.find((f) => f.taille >= 28 && f.taille <= 31);
+  const shapes = selects.map(describe);
+  const year = shapes.find((f) => f.tousNombres && f.min >= 2000 && f.max < 2100 && f.taille <= 10);
+  const minute = shapes.find((f) => f.taille === 60);
+  const day = shapes.find((f) => f.taille >= 28 && f.taille <= 31);
 
   // Ne restent que le mois et l'heure. Les deux peuvent compter douze entrees
   // sur un compte en 12 h, d'ou l'ordre d'affichage comme depart : la date
   // vient avant l'heure, partout.
-  const restants = formes.filter((f) => f !== annee && f !== minute && f !== jour);
-  const mois = restants[0];
-  const heure = restants[1];
+  const remaining = shapes.filter((f) => f !== year && f !== minute && f !== day);
+  const month = remaining[0];
+  const hour = remaining[1];
 
-  const attendus = [
-    ['mois', mois, date.getMonth() + 1, (f) => f && (f.taille === 12 || f.taille === 13)],
-    ['jour', jour, date.getDate(), (f) => f && f.taille >= 28 && f.taille <= 31],
-    ['annee', annee, date.getFullYear(), (f) => f && f.min >= 2000],
-    ['heure', heure, date.getHours(), (f) => f && (f.taille === 24 || f.taille === 12)],
+  const expected = [
+    ['mois', month, date.getMonth() + 1, (f) => f && (f.taille === 12 || f.taille === 13)],
+    ['jour', day, date.getDate(), (f) => f && f.taille >= 28 && f.taille <= 31],
+    ['annee', year, date.getFullYear(), (f) => f && f.min >= 2000],
+    ['heure', hour, date.getHours(), (f) => f && (f.taille === 24 || f.taille === 12)],
     ['minute', minute, date.getMinutes(), (f) => f && f.taille === 60],
   ];
 
-  const suspects = attendus.filter(([, f, , conforme]) => !conforme(f)).map(([n]) => n);
-  if (suspects.length) {
+  const suspicious = expected.filter(([, f, , conforme]) => !conforme(f)).map(([n]) => n);
+  if (suspicious.length) {
     return {
       ok: false,
       erreur: `champs d horaire non identifies : ${suspects.join(', ')}`,
-      formes: formes.map((f) => ({ taille: f.taille, min: f.min, max: f.max })),
+      shapes: shapes.map((f) => ({ taille: f.taille, min: f.min, max: f.max })),
     };
   }
 
-  for (const [nom, forme, valeur] of attendus) {
+  for (const [nom, forme, valeur] of expected) {
     // Le mois peut valoir « 8 », « 08 » ou « August » selon la locale : on
     // cherche donc l'option, on ne devine pas sa valeur.
     // `forme.options` exclut deja l'option vide, donc le rang d'un mois y est
@@ -335,13 +335,13 @@ async function programmerChezX(quand, confirmer) {
       (nom === 'heure' && forme.taille === 12 ? options[((valeur % 12) || 12) - 1] : null);
 
     if (!cible) return { ok: false, erreur: `valeur ${valeur} absente du champ ${nom}` };
-    poser(forme.select, cible.value);
-    await dors(160);
+    apply(forme.select, cible.value);
+    await sleep(160);
   }
 
   // 12 h : le champ AM/PM est un select de deux entrees, hors des cinq.
-  const meridien = formes.find((f) => f.taille === 2);
-  if (meridien) poser(meridien.select, date.getHours() < 12 ? 'AM' : 'PM');
+  const meridiem = shapes.find((f) => f.taille === 2);
+  if (meridiem) apply(meridiem.select, date.getHours() < 12 ? 'AM' : 'PM');
 
   /*
    * On relit avant de conclure.
@@ -351,20 +351,20 @@ async function programmerChezX(quand, confirmer) {
    * essai anterieur. Un composant controle par React peut reprendre la main
    * sur la valeur qu'on vient de poser ; seule la relecture le dit.
    */
-  await dors(500);
+  await sleep(500);
   const relu = {};
-  const ecarts = [];
-  for (const [nom, forme, valeur] of attendus) {
-    const obtenu = parseInt(forme.select.value, 10);
+  const mismatches = [];
+  for (const [nom, forme, valeur] of expected) {
+    const got = parseInt(forme.select.value, 10);
     relu[nom] = forme.select.value;
-    if (obtenu !== valeur) ecarts.push(`${nom} : ${obtenu} au lieu de ${valeur}`);
+    if (got !== valeur) mismatches.push(`${nom} : ${obtenu} au lieu de ${valeur}`);
   }
 
   // X resume l'echeance en toutes lettres au-dessus du formulaire. C'est ce
   // que verra qui regarde, donc ce qu'on rapporte.
   const resume = (document.body.innerText.match(/(Will send on|Sera envoy[ée][^\n]*)[^\n]*/) || [])[0] || null;
 
-  if (ecarts.length) {
+  if (mismatches.length) {
     return { ok: false, erreur: `horaire non pris : ${ecarts.join(' ; ')}`, relu, resume, dejaOuverte };
   }
 
@@ -372,20 +372,20 @@ async function programmerChezX(quand, confirmer) {
     return { ok: true, confirme: false, relu, resume, note: 'horaire saisi, confirmation laissee a la main' };
   }
 
-  await dors(400);
+  await sleep(400);
   // Le bouton n'a pas toujours de testid : on se rabat sur son libelle, dans
   // les deux langues que ce compte peut afficher.
-  const valider =
-    trouver('confirmerHoraire') ||
+  const confirmButton =
+    find('confirmScheduleButton') ||
     Array.from(document.querySelectorAll('[role="button"], button')).find((b) =>
       /^(confirm|confirmer)$/i.test((b.innerText || '').trim())
     );
-  if (!valider) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
-  valider.click();
-  await dors(1800);
+  if (!confirmButton) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
+  confirmButton.click();
+  await sleep(1800);
 
-  const encoreLa = document.querySelectorAll('select').length >= 5;
-  if (encoreLa) {
+  const stillOpen = document.querySelectorAll('select').length >= 5;
+  if (stillOpen) {
     return { ok: false, confirme: false, relu, resume, erreur: 'boite d horaire toujours affichee apres confirmation' };
   }
 
@@ -402,15 +402,15 @@ async function programmerChezX(quand, confirmer) {
    * l'etape suivante.
    */
   // On laisse le composeur se remettre en place avant de chercher son bouton.
-  let envoi = null;
-  for (let i = 0; i < 20 && !envoi; i++) { envoi = boutonEnvoi(); if (!envoi) await dors(250); }
-  if (!envoi) {
+  let sendBtn = null;
+  for (let i = 0; i < 20 && !sendBtn; i++) { sendBtn = sendButton(); if (!sendBtn) await sleep(250); }
+  if (!sendBtn) {
     return { ok: false, confirme: true, envoye: false, relu, resume,
              erreur: 'aucun bouton d envoi actif apres confirmation de l heure' };
   }
 
-  const libelle = (envoi.innerText || '').trim();
-  envoi.click();
+  const libelle = (sendBtn.innerText || '').trim();
+  sendBtn.click();
 
   /*
    * ==Cliquer n'est pas programmer.== On retournait `envoye: true` juste apres
@@ -419,14 +419,14 @@ async function programmerChezX(quand, confirmer) {
    * donc que la modale disparaisse — seule preuve que X a accepte — et on
    * remonte le message d'erreur quand elle reste la.
    */
-  const alerte = () =>
+  const alertText = () =>
     Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"], [data-testid="error-detail"]'))
       .map((el) => (el.innerText || '').trim())
       .find(Boolean) || '';
 
   for (let i = 0; i < 16; i++) {
-    await dors(400);
-    const message = alerte();
+    await sleep(400);
+    const message = alertText();
 
     // X annonce lui-meme le succes : « Your post will be sent on … ».
     if (/will be sent|sera envoy/i.test(message)) {
@@ -449,7 +449,7 @@ async function programmerChezX(quand, confirmer) {
 
   return {
     ok: false, confirme: true, envoye: false, libelle, relu, resume,
-    erreur: alerte() || 'composeur toujours ouvert apres le clic — X n a rien garde',
+    erreur: alertText() || 'composeur toujours ouvert apres le clic — X n a rien garde',
   };
 }
 
@@ -460,32 +460,32 @@ async function programmerChezX(quand, confirmer) {
  * « zero image » ne distingue pas un champ introuvable d'un fichier refuse
  * ou d'une affectation ignoree. Chaque etape laisse donc sa marque.
  */
-async function joindreImages(images, trace = {}) {
+async function attachImages(images, trace = {}) {
   trace.recues = images?.length ?? 0;
   if (!images?.length) return 0;
 
-  const champ = await attendre('champFichier');
-  trace.champTrouve = !!champ;
-  if (!champ) throw new Error('champ fichier introuvable');
-  trace.champ = champ.getAttribute('data-testid') || champ.getAttribute('accept') || 'input';
+  const field = await waitFor('fileField');
+  trace.champTrouve = !!field;
+  if (!field) throw new Error('champ fichier introuvable');
+  trace.field = field.getAttribute('data-testid') || field.getAttribute('accept') || 'input';
 
   const dt = new DataTransfer();
-  const fichiers = images.slice(0, 4).map((img, i) => versFichier(img.dataUrl, img.nom || `image-${i + 1}.png`));
-  trace.construits = fichiers.map((f) => ({ nom: f.name, type: f.type, octets: f.size }));
+  const files = images.slice(0, 4).map((img, i) => toFile(img.dataUrl, img.nom || `image-${i + 1}.png`));
+  trace.construits = files.map((f) => ({ nom: f.name, type: f.type, bytes: f.size }));
 
-  for (const f of fichiers) {
-    try { dt.items.add(f); } catch (e) { trace.erreurAjout = String(e.message || e); }
+  for (const f of files) {
+    try { dt.items.add(f); } catch (e) { trace.addError = String(e.message || e); }
   }
   trace.dansDataTransfer = dt.files.length;
 
   // `files` est en lecture seule : seul un DataTransfer peut la remplacer.
-  champ.files = dt.files;
-  trace.apresAffectation = champ.files.length;
+  field.files = dt.files;
+  trace.apresAffectation = field.files.length;
 
-  champ.dispatchEvent(new Event('change', { bubbles: true }));
+  field.dispatchEvent(new Event('change', { bubbles: true }));
 
   // Le televersement doit finir avant qu'on puisse toucher aux textes alternatifs.
-  await dors(1200 + dt.files.length * 900);
+  await sleep(1200 + dt.files.length * 900);
 
   // Ce que X a reellement monte dans le composeur, et non ce qu'on lui a
   // tendu : c'est la seule mesure qui compte.
@@ -500,7 +500,7 @@ async function joindreImages(images, trace = {}) {
    * trace contredisait dans le meme objet. On retourne donc ce que X a
    * reellement affiche, la seule mesure qui vaille.
    */
-  return trace.vignettesVisibles || champ.files.length;
+  return trace.vignettesVisibles || field.files.length;
 }
 
 /**
@@ -512,9 +512,9 @@ async function joindreImages(images, trace = {}) {
  * connus, puis on complete par nom accessible, ==limite a la zone des pieces
  * jointes== pour ne jamais cliquer un « Remove media » par megarde.
  */
-function boutonsAlt() {
-  const vus = new Set();
-  const sortie = [];
+function altButtons() {
+  const seen = new Set();
+  const out = [];
 
   /*
    * ==Ne pas revenir a `offsetParent`.== Il vaut `null` pour tout element
@@ -524,15 +524,15 @@ function boutonsAlt() {
    * alternatif n'a jamais ete pose : le selecteur d'origine portait deja ce
    * filtre. `getClientRects()` ne se laisse pas piéger par le positionnement.
    */
-  const visible = (el) => el.getClientRects().length > 0;
+  const isVisible = (el) => el.getClientRects().length > 0;
 
-  const pousser = (el) => {
-    if (!el || vus.has(el) || !visible(el)) return;
-    vus.add(el);
-    sortie.push(el);
+  const push = (el) => {
+    if (!el || seen.has(el) || !isVisible(el)) return;
+    seen.add(el);
+    out.push(el);
   };
 
-  for (const s of SEL.boutonAlt) document.querySelectorAll(s).forEach(pousser);
+  for (const s of SEL.altButton) document.querySelectorAll(s).forEach(push);
 
   /*
    * ==Constate sur capture, pas deduit== : X n'affiche pas de pastille ALT sur
@@ -557,11 +557,11 @@ function boutonsAlt() {
     const label = (el.getAttribute('aria-label') || '').toLowerCase();
     const texte = (el.textContent || '').trim();
     if (label.includes('descri') || texte.toLowerCase().includes('description') || texte.toUpperCase() === 'ALT') {
-      pousser(el);
+      push(el);
     }
   });
 
-  return sortie;
+  return out;
 }
 
 /**
@@ -570,10 +570,10 @@ function boutonsAlt() {
  * Sans eux la publication reste illisible pour qui utilise un lecteur
  * d'ecran, et c'est le genre d'oubli qu'un automate reproduit a l'infini.
  */
-async function ecrireAlts(alts, trace = {}) {
+async function writeAlts(alts, trace = {}) {
   trace.recues = alts?.length ?? 0;
   if (!alts?.length) return 0;
-  let poses = 0;
+  let applied = 0;
 
   for (let i = 0; i < alts.length; i++) {
     const texte = alts[i];
@@ -597,18 +597,18 @@ async function ecrireAlts(alts, trace = {}) {
      * On patiente donc jusqu'a 45 s, et on note le delai reel : c'est la
      * mesure qui manquait pour regler cette fenetre sans deviner.
      */
-    let boutons = [];
-    let attendu = 0;
-    for (let essai = 0; essai < 90; essai++) {
-      boutons = boutonsAlt();
-      if (boutons.length > i) break;
-      await dors(500);
-      attendu = (essai + 1) * 500;
+    let buttons = [];
+    let waited = 0;
+    for (let attempt = 0; attempt < 90; attempt++) {
+      buttons = altButtons();
+      if (buttons.length > i) break;
+      await sleep(500);
+      waited = (attempt + 1) * 500;
     }
-    trace.boutonsVus = boutons.length;
-    trace.attenduMs = attendu;
+    trace.boutonsVus = buttons.length;
+    trace.attenduMs = waited;
 
-    if (!boutons[i]) {
+    if (!buttons[i]) {
       trace.arret = `aucune pastille de description pour l'image ${i + 1}`;
       /*
        * Diagnostic : on ne peut pas inspecter ce DOM a distance, et deux
@@ -617,7 +617,7 @@ async function ecrireAlts(alts, trace = {}) {
        * libelle de la pastille apparaitra dedans.
        */
       trace.pieces = !!document.querySelector('[data-testid="attachments"]');
-      trace.candidats = Array.from(document.querySelectorAll('button, [role="button"], a'))
+      trace.candidates = Array.from(document.querySelectorAll('button, [role="button"], a'))
         .filter((el) => el.getClientRects().length > 0)
         .map((el) => `${el.getAttribute('aria-label') || ''}|${(el.textContent || '').trim()}`.slice(0, 44))
         .filter((s) => s !== '|')
@@ -625,48 +625,48 @@ async function ecrireAlts(alts, trace = {}) {
       break;
     }
 
-    boutons[i].click();
-    const champ = await attendre('champAlt', 4000);
-    if (!champ) {
+    buttons[i].click();
+    const field = await waitFor('altField', 4000);
+    if (!field) {
       trace.arret = `champ de description absent apres clic sur l'image ${i + 1}`;
       break;
     }
 
-    champ.focus();
+    field.focus();
     document.execCommand('insertText', false, texte);
-    await dors(200);
+    await sleep(200);
     // Ce que le champ porte vraiment : « clique puis fais confiance » est
     // exactement ce qui a laisse passer des posts sans alternative.
-    trace.ecrit = (champ.value ?? champ.textContent ?? '').length;
+    trace.ecrit = (field.value ?? field.textContent ?? '').length;
 
-    const valider = trouver('validerAlt');
-    if (valider) valider.click();
+    const confirmButton = find('altApplyButton');
+    if (confirmButton) confirmButton.click();
     else trace.arret = 'bouton de validation de la description introuvable';
-    await dors(500);
-    poses++;
+    await sleep(500);
+    applied++;
   }
-  return poses;
+  return applied;
 }
 
 /** Clique Poster. Uniquement si l'appelant l'a demande explicitement. */
 async function publier() {
-  let bouton = null;
-  for (let i = 0; i < 20 && !bouton; i++) { bouton = boutonEnvoi(); if (!bouton) await dors(250); }
-  if (!bouton) {
+  let button = null;
+  for (let i = 0; i < 20 && !button; i++) { button = sendButton(); if (!button) await sleep(250); }
+  if (!button) {
     // Distingue « pas de bouton » de « bouton grise » : le second veut dire
     // texte vide ou televersement en cours, et cela se corrige autrement.
-    const existe = SEL.boutonPoster.some((sel) => document.querySelector(sel));
+    const existe = SEL.postButton.some((sel) => document.querySelector(sel));
     throw new Error(existe
       ? 'bouton Poster desactive — texte vide ou televersement en cours'
       : 'bouton Poster introuvable');
   }
-  bouton.click();
-  await dors(1500);
+  button.click();
+  await sleep(1500);
   return true;
 }
 
 /** Enchainement complet. `publier` est toujours un choix conscient. */
-async function composer({ texte, images, alts, publier: doitPublier, comptesAutorises, programmerLe }) {
+async function compose({ texte, images, alts, publier: doitPublier, comptesAutorises, programmerLe }) {
   // Ce que le script a REELLEMENT recu : sans ca, un rapport a zero ne dit
   // pas si la charge etait vide ou si la jonction a echoue.
   const rapport = {
@@ -689,8 +689,8 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
    * n'a rien demande — mais le compte detecte part dans le rapport, pour
    * qu'il soit lisible sans avoir a le chercher.
    */
-  const actif = compteActif();
-  rapport.compte = actif;
+  const active = activeAccount();
+  rapport.compte = active;
 
   if (comptesAutorises?.length) {
     /*
@@ -705,23 +705,23 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
      * On aplatit donc les deux champs, et on accepte encore les entrees en
      * chaine au cas ou d'anciens reglages en contiendraient.
      */
-    const attendus = comptesAutorises
+    const expected = comptesAutorises
       .flatMap((c) => (typeof c === 'string' ? [c] : [c?.id, c?.pseudo]))
       .filter(Boolean)
       .map((v) => String(v).replace(/^@/, '').toLowerCase());
     const permis =
-      (actif.id && attendus.includes(actif.id)) ||
-      (actif.pseudo && attendus.includes(actif.pseudo.toLowerCase()));
+      (active.id && expected.includes(active.id)) ||
+      (active.pseudo && expected.includes(active.pseudo.toLowerCase()));
 
     if (!permis) {
-      rapport.refus = actif.id || actif.pseudo
+      rapport.refus = active.id || active.pseudo
         ? `compte non autorise : ${actif.pseudo ? '@' + actif.pseudo : ''} ${actif.id || ''}`.trim()
         : 'compte indeterminable — session absente ?';
       return rapport;
     }
   }
 
-  const ecriture = await ecrireTexte(texte);
+  const ecriture = await writeText(texte);
   rapport.texte = ecriture.ok;
   rapport.ecriture = ecriture;
 
@@ -729,7 +729,7 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
   // vaut un composeur vide qu une publication de travers.
   if (!ecriture.ok) return rapport;
   rapport.trace = {};
-  rapport.images = await joindreImages(images, rapport.trace);
+  rapport.images = await attachImages(images, rapport.trace);
 
   /*
    * ==L'attente du televersement vient avant les alternatives, pas apres.==
@@ -740,14 +740,14 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
    */
   rapport.attenteEnvoi = 0;
   if (images?.length) {
-    for (let i = 0; i < 40 && !boutonEnvoi(); i++) {
-      await dors(500);
+    for (let i = 0; i < 40 && !sendButton(); i++) {
+      await sleep(500);
       rapport.attenteEnvoi = (i + 1) * 500;
     }
   }
 
   rapport.traceAlt = {};
-  rapport.alts = await ecrireAlts(alts, rapport.traceAlt);
+  rapport.alts = await writeAlts(alts, rapport.traceAlt);
 
   /*
    * L'horaire vient apres les images : le formulaire de X ouvre une couche
@@ -760,7 +760,7 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
   if (programmerLe) {
     // L'attente du televersement a deja eu lieu plus haut : programmer trop
     // tot faisait repondre a X « The content of your post is invalid ».
-    rapport.horaire = await programmerChezX(programmerLe, doitPublier);
+    rapport.horaire = await scheduleAtX(programmerLe, doitPublier);
     // « Programme » veut dire parti chez X, pas « heure saisie » : c est la
     // difference que le premier essai avait effacee.
     rapport.programme = rapport.horaire.envoye === true;
@@ -782,21 +782,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
    * reutiliser un onglet, on lui demande s'il est vide.
    */
   if (message?.action === 'xposterEtat') {
-    const zone = trouver('zoneTexte');
-    sendResponse({ ok: true, present: !!zone, vide: !zone || texteActuel(zone) === '' });
+    const area = find('textArea');
+    sendResponse({ ok: true, present: !!area, vide: !area || currentText(area) === '' });
     return true;
   }
 
   // Sert a la page d'options : « ajoute le compte ou je suis connecte »,
   // plutot que de demander a quelqu'un de retrouver son identifiant numerique.
   if (message?.action === 'xposterCompte') {
-    sendResponse({ ok: true, ...compteActif() });
+    sendResponse({ ok: true, ...activeAccount() });
     return true;
   }
 
   if (message?.action !== 'xposterComposer') return;
 
-  composer(message.charge)
+  compose(message.charge)
     .then((rapport) => {
       console.log(LOG, 'compose', rapport);
       sendResponse({ ok: true, rapport });
