@@ -27,6 +27,45 @@ const MINUTE_MIN = 0.5;
  */
 const RETARD_MAX = 30 * 60 * 1000;
 
+/**
+ * Au-dela, une echeance qui n'a jamais rendu de rapport est abandonnee.
+ *
+ * Voir `keepWorkerAwake` : une composition qui tue le worker ne peut pas ecrire
+ * son propre echec, et `rearmer` la relance au demarrage suivant. Sans ce
+ * compteur, elle rouvre le composeur indefiniment.
+ */
+const MAX_ATTEMPTS = 2;
+
+/**
+ * Tient le service worker eveille le temps d'une composition.
+ *
+ * En MV3, Chrome arrete le worker apres trente secondes sans activite. Une
+ * composition en demande bien davantage : X met parfois pres d'une minute a
+ * monter une image, et « Add description » n'apparait qu'ensuite — d'ou les
+ * attentes longues de `xposter-content.js`, qui cumulent jusqu'a soixante-
+ * quinze secondes.
+ *
+ * Le worker mourait donc au milieu de `sendMessage`. Symptomes observes le
+ * 24/08, tous le meme : « A listener indicated an asynchronous response by
+ * returning true, but the message channel closed before a response was
+ * received », puis l'entree restant « en attente » — le `catch` qui ecrit
+ * l'echec n'ayant jamais eu lieu — et `rearmer` la relancant au demarrage
+ * suivant, qui tuait le worker a son tour. Le composeur se rouvrait en
+ * boucle, visible dans la barre d'adresse.
+ *
+ * Un appel a une API chrome remet le compte a rebours a zero. On en passe un
+ * toutes les vingt secondes, et on relache des que la composition rend la
+ * main. `setInterval` suffit ici, contrairement a une echeance lointaine :
+ * ce battement ne doit vivre que tant que le worker vit, et c'est lui qui
+ * l'entretient.
+ */
+function keepWorkerAwake() {
+  const heartbeat = setInterval(() => {
+    chrome.runtime.getPlatformInfo().catch(() => {});
+  }, 20000);
+  return () => clearInterval(heartbeat);
+}
+
 async function lireFile() {
   const { [CLE_FILE]: file } = await chrome.storage.local.get({ [CLE_FILE]: [] });
   return file;
@@ -206,9 +245,21 @@ export async function relancer(id) {
   }
 
   const rapport = await executer(publication);
-  publication.etat = rapport?.ok ? (publication.publier ? 'publie' : 'prepare') : 'echec';
+  /*
+   * Meme lecture qu'au depot : `programme` vit dans `rapport.rapport`, pas au
+   * premier niveau. La correction du 20/08 avait ete posee sur le chemin du
+   * depot seulement — relancer une echeance confiee a X la reclassait donc en
+   * « preparee », alors que X l'avait gardee. Un etat faux ici est couteux :
+   * c'est exactement ce qu'on regarde pour decider quoi refaire.
+   */
+  publication.etat = rapport?.rapport?.programme
+    ? 'confie a X'
+    : rapport?.ok ? (publication.publier ? 'publie' : 'prepare') : 'echec';
   publication.rapport = rapport;
   publication.execute = Date.now();
+  // Une relance a la main repart d'une ardoise propre : le compteur ne sert
+  // qu'a arreter les reveils en boucle, pas a brider une decision humaine.
+  publication.attempts = 0;
   await ecrireFile(file);
   return rapport;
 }
@@ -230,6 +281,34 @@ export async function rearmer() {
 
   for (const publication of file) {
     if (publication.etat !== 'en attente') continue;
+
+    /*
+     * Une echeance confiee a X n'a jamais de reveil : la remise se fait au
+     * depot, et le depot seul. La trouver « en attente » ne veut donc pas
+     * dire qu'elle attend son heure, mais que la composition n'a jamais rendu
+     * son rapport — worker arrete en cours de route.
+     *
+     * On lui posait pourtant une alarme, faute de regarder `programmation`.
+     * Au reveil elle recomposait tout, tuait le worker a son tour, et restait
+     * « en attente » pour le demarrage suivant : c'est cette boucle qui
+     * rouvrait le composeur sans fin le 24/08. Le commentaire du depot le
+     * disait deja — « garder un reveil en plus reposterait le meme contenu ».
+     *
+     * On la marque donc en echec. Elle reste visible et relancable a la main,
+     * ce qui est le bon niveau de decision : personne ne sait ici si X a
+     * garde quelque chose avant la coupure.
+     */
+    if (publication.programmation === 'x') {
+      publication.etat = 'echec';
+      publication.execute = Date.now();
+      publication.rapport = {
+        ok: false,
+        erreur: 'composition interrompue — verifier chez X avant de relancer',
+      };
+      modifie = true;
+      console.warn(LOG, 'interrompue', publication.id);
+      continue;
+    }
 
     const retard = Date.now() - publication.quand;
     if (retard > RETARD_MAX) {
@@ -295,6 +374,17 @@ export async function capturerComposeur() {
  * garde-fou qui ne depende pas de ce qu'on lui envoie.
  */
 export async function executer(publication) {
+  // L'ouverture de l'onglet compte deja pres de vingt secondes avant meme la
+  // composition : le battement couvre toute la fonction, pas le seul envoi.
+  const release = keepWorkerAwake();
+  try {
+    return await executerInterne(publication);
+  } finally {
+    release();
+  }
+}
+
+async function executerInterne(publication) {
   const { xposterAutoriserPublication, xposterComptes } = await new Promise((r) =>
     chrome.storage.sync.get({ xposterAutoriserPublication: false, xposterComptes: [] }, r)
   );
@@ -332,6 +422,28 @@ export async function surAlarme(alarme) {
   const file = await lireFile();
   const publication = file.find((p) => p.id === id);
   if (!publication) return;
+
+  /*
+   * On compte l'essai avant de le tenter, et on l'ecrit immediatement.
+   *
+   * L'ordre n'est pas un detail : c'est precisement parce que le resultat
+   * s'ecrit apres coup qu'un worker tue en cours de route ne laisse aucune
+   * trace. Un compteur pose apres l'appel aurait le meme sort, et la boucle
+   * qu'il doit arreter le remettrait a zero a chaque tour.
+   */
+  publication.attempts = (publication.attempts || 0) + 1;
+  if (publication.attempts > MAX_ATTEMPTS) {
+    publication.etat = 'echec';
+    publication.execute = Date.now();
+    publication.rapport = {
+      ok: false,
+      erreur: `abandonnee apres ${MAX_ATTEMPTS} tentatives — le composeur n a jamais rendu son rapport`,
+    };
+    await ecrireFile(file);
+    console.warn(LOG, 'abandon', id);
+    return;
+  }
+  await ecrireFile(file);
 
   try {
     const rapport = await executer(publication);
