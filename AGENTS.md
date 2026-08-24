@@ -119,6 +119,40 @@ Ajouter `"run_at": "document_idle"` pour les SPA React.
 - AniList est la source de vérité pour les données anime
 - Le bouton info (3ème, violet) occupe le même slot que le bouton "quitter édition" — il est caché en mode édition
 
+### Langue du code : identifiants en anglais, prose en français
+
+Les fonctions, constantes, variables, champs et clés sont en **anglais**. Les
+commentaires, les messages de log et les textes affichés restent en
+**français**. C'est la règle du poste, elle n'a pas d'exception ici.
+
+Le module XPoster a longtemps été le seul du dépôt à porter des identifiants
+français. Ce n'était pas un choix : le module est né comme ça le 19/08, et
+chaque session s'est alignée dessus au lieu de le signaler. Corrigé le 24/08.
+
+**Le piège est mécanique, pas théorique** : on écrit un commentaire en
+français, et le nom de la variable suit la langue de la phrase qu'on vient
+d'écrire. « la boîte d'horaire » donne `const boite` trois mots plus loin. Ça
+s'est produit trois commits de suite, y compris juste après le renommage.
+
+Avant de commiter une modification de `scripts/xposter-*.js` :
+
+```
+python tools/check-identifiers.py
+```
+
+Il découpe chaque fichier en zones code / commentaire / chaîne, ne signale que
+la première, et sort en erreur si un identifiant français subsiste.
+
+**Ce qu'il laisse volontairement passer** — les noms qui franchissent une
+frontière et ne se renomment donc pas d'un seul côté : les clés de
+`chrome.storage` (`xposterToken`, `xposterFile`…), les champs de la charge et
+du rapport (`texte`, `quand`, `publier`, `etat`, `rapport`…), et les noms
+d'action du pont (`programmer`, `lister`, `capturer`…), qui sont les
+sous-commandes tapées à la main. Leur passage à l'anglais demande une
+migration du stockage et une mise à jour simultanée du CLI, du serveur, des
+deux interfaces et de la documentation externe. C'est un chantier à part,
+pas une ligne de plus.
+
 ## Module « Publication X »
 
 Prépare, publie ou programme des publications sur x.com depuis un outil local.
@@ -162,3 +196,59 @@ Il ne parle pas à l'API de X et ne connaît aucun identifiant : il pilote
 l'interface dans un onglet déjà connecté. C'est contraire aux règles
 d'automatisation de X — le mode « préparer », qui laisse le clic final à
 l'humain, est celui qui reste dans les clous.
+
+## Module « Téléchargement Facebook »
+
+Repère les vidéos sur `facebook.com` et propose deux sorties selon ce que la
+page expose réellement.
+
+### Pièces
+
+- `scripts/facebook-extract.js` — le cœur. Reconnaît une URL de vidéo
+  (`/watch/live/?v=`, `/watch/?v=`, `/{page}/videos/{id}`, `/reel/{id}`,
+  `/share/v/{token}`, `story_fbid`) et tire du HTML les sources, le titre, la
+  date et la durée. Fonctions pures, testables hors navigateur.
+- `scripts/facebook-content.js` — panneau flottant sur la page, analyse et
+  actions. SPA : pushState/replaceState/popstate.
+- `scripts/facebook-queue.js` — la file (`chrome.storage.local`, clé `fbFile`)
+  et l'appel à `chrome.downloads`.
+- `interfaces/fb-downloader.html` + `.js` — consulter la file, exporter
+  `lives.txt`, copier la commande yt-dlp.
+
+### Deux sorties, parce que Facebook sert deux choses
+
+| Ce que la page expose | Sortie |
+|---|---|
+| `browser_native_hd_url` / `browser_native_sd_url` — un mp4 déjà muxé | téléchargement direct par le navigateur |
+| `dash_manifest` seul — pistes audio et vidéo séparées | file d'attente, yt-dlp muxe |
+
+Les lives longs n'ont souvent que du DASH : la file n'est pas un supplément,
+c'est le chemin normal pour eux.
+
+### Trois pièges déjà payés
+
+1. **La balise `<video>` ne sert à rien** : elle porte un `blob:` (Media Source
+   Extensions). Les URL vivent dans les blobs JSON du HTML servi.
+2. **Ne pas lire le DOM courant après une navigation SPA** : il contient encore
+   les blobs de la *première* vidéo vue, et on télécharge la mauvaise. On refait
+   une requête sur l'URL canonique ; le DOM n'est qu'un repli, et seulement si
+   l'identifiant y figure.
+3. **Les URL du CDN sont signées et expirent** en quelques heures. La file ne
+   stocke donc que l'URL de la page ; le média est ré-extrait au moment du clic.
+
+### Motifs d'extraction
+
+Écrits avec `String.raw`. Les blobs sont échappés une fois (`https:\/\/…`) ou
+deux selon l'imbrication, et un backslash perdu à l'écriture rend la regex
+silencieusement inerte – elle ne lève rien, elle ne trouve simplement plus rien.
+
+### Vérifier après une refonte de Facebook
+
+Le HTML utile n'est servi qu'à une session connectée – `curl` nu reçoit une
+page de redirection de 1,5 Ko. Pour retrouver la vraie page hors navigateur :
+
+```
+yt-dlp --write-pages --skip-download -F "<url>"
+```
+
+puis passer le `.dump` obtenu à `extraireDepuisHtml`.
