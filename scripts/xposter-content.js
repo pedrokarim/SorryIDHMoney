@@ -380,14 +380,44 @@ async function scheduleAtX(quand, confirmer) {
   }
 
   await sleep(400);
-  // Le bouton n'a pas toujours de testid : on se rabat sur son libelle, dans
-  // les deux langues que ce compte peut afficher.
+
+  /*
+   * ==Le bouton ne s'appelle pas toujours « Confirm ».==
+   *
+   * Constate sur capture le 24/08 : quand la boite s'ouvre sur un horaire
+   * deja pose — ce qui arrive des la deuxieme tentative sur le meme
+   * composeur — X intitule son bouton ==« Update »==. On ne cherchait que
+   * « Confirm » et « Confirmer », donc on n'appuyait sur rien : l'heure etait
+   * saisie, juste, et la programmation s'arretait la sans que rien ne casse.
+   *
+   * ==Et on ne balaie plus le document.== La recherche portait sur tous les
+   * `[role="button"], button` de la page, en lisant l'`innerText` de chacun —
+   * un recalcul de layout par bouton, sur le fil entier de x.com. C'est ce
+   * balayage qui figeait l'onglet a l'etape horaire. La boite d'horaire est
+   * une modale : tout ce qu'on cherche y est.
+   *
+   * `textContent` plutot que `innerText` : le premier lit l'arbre, le second
+   * demande au navigateur ce qui est reellement affiche, donc un layout.
+   */
+  const LIBELLES_CONFIRMATION = /^(confirm|confirmer|update|mettre a jour|mettre à jour)$/i;
+  const boite = document.querySelector('[aria-modal="true"], [role="dialog"]') || document;
   const confirmButton =
     find('confirmScheduleButton') ||
-    Array.from(document.querySelectorAll('[role="button"], button')).find((b) =>
-      /^(confirm|confirmer)$/i.test((b.innerText || '').trim())
+    Array.from(boite.querySelectorAll('[role="button"], button')).find((b) =>
+      LIBELLES_CONFIRMATION.test((b.textContent || '').trim())
     );
-  if (!confirmButton) return { ok: true, confirme: false, erreur: 'bouton de confirmation introuvable' };
+  if (!confirmButton) {
+    /*
+     * Le libelle change : quand aucun ne repond, on remonte ceux qu'on a vus.
+     * C'est ce qui a permis de trouver « Update », et ca coute une ligne.
+     */
+    const vus = Array.from(boite.querySelectorAll('[role="button"], button'))
+      .map((b) => (b.textContent || '').trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    return { ok: true, confirme: false, relu, resume,
+             erreur: `bouton de confirmation introuvable — libelles presents : ${vus.join(' | ')}` };
+  }
   confirmButton.click();
   await sleep(1800);
 
