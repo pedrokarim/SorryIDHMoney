@@ -79,7 +79,7 @@ async function handle(ordre) {
     return { id: ordre.id, ok: false, erreur: `action inconnue : ${ordre.action}` };
   }
   try {
-    return { id: ordre.id, ok: true, result: await fn(ordre.charge || {}) };
+    return { id: ordre.id, ok: true, resultat: await fn(ordre.charge || {}) };
   } catch (err) {
     return { id: ordre.id, ok: false, erreur: String(err.message || err) };
   }
