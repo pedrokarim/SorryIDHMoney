@@ -114,7 +114,8 @@ async function attendre(cles, delai = 8000) {
 function boutonEnvoi() {
   const candidats = SEL.boutonPoster
     .flatMap((sel) => Array.from(document.querySelectorAll(sel)))
-    .filter((b) => b.offsetParent !== null && b.getAttribute('aria-disabled') !== 'true');
+    // `offsetParent` vaut `null` sous la modale, qui est `position: fixed`.
+    .filter((b) => b.getClientRects().length > 0 && b.getAttribute('aria-disabled') !== 'true');
 
   const fenetre = document.querySelector('[aria-modal="true"], [role="dialog"]');
   return (fenetre && candidats.find((b) => fenetre.contains(b))) || candidats[0] || null;
@@ -237,8 +238,18 @@ async function programmerChezX(quand, confirmer) {
     const bouton = await attendre('boutonHoraire', 6000);
     if (!bouton) return { ok: false, erreur: 'bouton horaire introuvable' };
     bouton.click();
-    await dors(900);
-    selects = Array.from(document.querySelectorAll('select'));
+
+    /*
+     * On attendait 900 ms fixes. C'est suffisant sur un composeur vide, pas
+     * apres un televersement : le formulaire est arrive en retard et on a
+     * conclu a son absence, ==sur un post que X aurait accepte de programmer==.
+     * On attend donc que les cinq listes existent, jusqu'a six secondes.
+     */
+    for (let essai = 0; essai < 12; essai++) {
+      await dors(500);
+      selects = Array.from(document.querySelectorAll('select'));
+      if (selects.length >= 5) break;
+    }
   }
   if (selects.length < 5) return { ok: false, erreur: `formulaire d horaire absent (${selects.length} champs)` };
 
@@ -400,9 +411,46 @@ async function programmerChezX(quand, confirmer) {
 
   const libelle = (envoi.innerText || '').trim();
   envoi.click();
-  await dors(2200);
 
-  return { ok: true, confirme: true, envoye: true, libelle, relu, resume };
+  /*
+   * ==Cliquer n'est pas programmer.== On retournait `envoye: true` juste apres
+   * le clic : X a repondu « The content of your post is invalid. », le
+   * composeur est reste ouvert, et le rapport annoncait un succes. On attend
+   * donc que la modale disparaisse — seule preuve que X a accepte — et on
+   * remonte le message d'erreur quand elle reste la.
+   */
+  const alerte = () =>
+    Array.from(document.querySelectorAll('[role="alert"], [data-testid="toast"], [data-testid="error-detail"]'))
+      .map((el) => (el.innerText || '').trim())
+      .find(Boolean) || '';
+
+  for (let i = 0; i < 16; i++) {
+    await dors(400);
+    const message = alerte();
+
+    // X annonce lui-meme le succes : « Your post will be sent on … ».
+    if (/will be sent|sera envoy/i.test(message)) {
+      return { ok: true, confirme: true, envoye: true, libelle, relu, resume, message };
+    }
+    if (/invalid|error|erreur/i.test(message)) {
+      return { ok: false, confirme: true, envoye: false, libelle, relu, resume, erreur: message };
+    }
+
+    /*
+     * Repli : la modale a disparu. ==Ne pas tester `tweetTextarea_0` seul== —
+     * le composeur inline du fil, derriere la modale, porte le meme testid et
+     * ne disparait jamais. Un premier essai a ainsi rapporte un echec sur une
+     * publication que X avait bel et bien gardee.
+     */
+    if (!document.querySelector('[aria-modal="true"], [role="dialog"]')) {
+      return { ok: true, confirme: true, envoye: true, libelle, relu, resume };
+    }
+  }
+
+  return {
+    ok: false, confirme: true, envoye: false, libelle, relu, resume,
+    erreur: alerte() || 'composeur toujours ouvert apres le clic — X n a rien garde',
+  };
 }
 
 /**
@@ -445,7 +493,75 @@ async function joindreImages(images, trace = {}) {
     '[data-testid="attachments"] img, [data-testid="attachments"] video, [aria-label*="Media"] img'
   ).length;
 
-  return champ.files.length;
+  /*
+   * On retournait `champ.files.length`. X vide la liste du champ des qu'il a
+   * consomme l'evenement `change` : la valeur retombait a zero et le rapport
+   * annoncait ==« images: 0 »== pour des images pourtant montees, ce que la
+   * trace contredisait dans le meme objet. On retourne donc ce que X a
+   * reellement affiche, la seule mesure qui vaille.
+   */
+  return trace.vignettesVisibles || champ.files.length;
+}
+
+/**
+ * Les pastilles « Add description » du composeur.
+ *
+ * On ne se fie pas a un seul `data-testid` : X le renomme, et la pastille est
+ * un `div[role="button"]` plus souvent qu'un `<button>`, ce qui faisait
+ * echouer le selecteur d'origine en silence. On ratisse donc les selecteurs
+ * connus, puis on complete par nom accessible, ==limite a la zone des pieces
+ * jointes== pour ne jamais cliquer un « Remove media » par megarde.
+ */
+function boutonsAlt() {
+  const vus = new Set();
+  const sortie = [];
+
+  /*
+   * ==Ne pas revenir a `offsetParent`.== Il vaut `null` pour tout element
+   * place sous un ancetre `position: fixed` — ce qu'est la modale de
+   * composition de X. Le test rejetait donc en silence des boutons
+   * parfaitement visibles, et c'est la vraie raison pour laquelle aucun texte
+   * alternatif n'a jamais ete pose : le selecteur d'origine portait deja ce
+   * filtre. `getClientRects()` ne se laisse pas piéger par le positionnement.
+   */
+  const visible = (el) => el.getClientRects().length > 0;
+
+  const pousser = (el) => {
+    if (!el || vus.has(el) || !visible(el)) return;
+    vus.add(el);
+    sortie.push(el);
+  };
+
+  for (const s of SEL.boutonAlt) document.querySelectorAll(s).forEach(pousser);
+
+  /*
+   * ==Constate sur capture, pas deduit== : X n'affiche pas de pastille ALT sur
+   * la vignette. Le declencheur est un lien « Add description » place SOUS
+   * l'image, a cote de « Tag people » — donc hors de `[data-testid="attachments"]`,
+   * ou un premier repli allait le chercher pour rien.
+   *
+   * On balaie donc le document. Le mot « description » est assez specifique
+   * pour qu'aucun autre controle du composeur ne reponde, et un clic errone
+   * echouerait de toute facon proprement : le champ n'apparaitrait pas et la
+   * boucle s'arreterait en le disant.
+   */
+  /*
+   * ==Inclure `a` nu.== Mesure faite, pas supposee : apres 45 s d'attente,
+   * l'inventaire de diagnostic listait bien « Add description », que ce
+   * balayage ne voyait pas. La seule difference entre les deux requetes etait
+   * `a[role="button"]` ici contre `a` la-bas — X expose donc ce declencheur
+   * comme un lien sans role explicite, ce qu'aucun de mes trois selecteurs
+   * successifs ne pouvait atteindre.
+   */
+  document.querySelectorAll('button, [role="button"], a').forEach((el) => {
+    const label = (el.getAttribute('aria-label') || '').toLowerCase();
+    const texte = (el.textContent || '').trim();
+    if (label.includes('descri') || texte.toLowerCase().includes('description') || texte.toUpperCase() === 'ALT') {
+      pousser(el);
+    }
+  });
+
+  return sortie;
 }
 
 /**
@@ -454,7 +570,8 @@ async function joindreImages(images, trace = {}) {
  * Sans eux la publication reste illisible pour qui utilise un lecteur
  * d'ecran, et c'est le genre d'oubli qu'un automate reproduit a l'infini.
  */
-async function ecrireAlts(alts) {
+async function ecrireAlts(alts, trace = {}) {
+  trace.recues = alts?.length ?? 0;
   if (!alts?.length) return 0;
   let poses = 0;
 
@@ -462,22 +579,69 @@ async function ecrireAlts(alts) {
     const texte = alts[i];
     if (!texte) continue;
 
-    const boutons = SEL.boutonAlt
-      .flatMap((s) => Array.from(document.querySelectorAll(s)))
-      .filter((b) => b.offsetParent !== null);
+    /*
+     * La pastille n'existe qu'une fois la vignette montee, et X prend son
+     * temps. On sortait par `break` au premier coup d'oeil : le rapport
+     * affichait ==0 alternative posee== sans jamais dire qu'il n'avait
+     * trouve aucun bouton. On patiente, et surtout on note ce qu'on voit.
+     */
+    /*
+     * ==Attendre la pastille elle-meme, et longtemps.==
+     *
+     * Trois hypotheses sont tombees avant celle-ci. La bonne, constatee sur
+     * capture : « Add description » n'existe qu'une fois le media monte chez
+     * X, et cela demande bien plus que les six secondes qu'on accordait. Le
+     * bouton d'envoi ne sert pas de temoin — il reste actif pendant toute la
+     * montee, `attenteEnvoi` valait 0 a chaque essai.
+     *
+     * On patiente donc jusqu'a 45 s, et on note le delai reel : c'est la
+     * mesure qui manquait pour regler cette fenetre sans deviner.
+     */
+    let boutons = [];
+    let attendu = 0;
+    for (let essai = 0; essai < 90; essai++) {
+      boutons = boutonsAlt();
+      if (boutons.length > i) break;
+      await dors(500);
+      attendu = (essai + 1) * 500;
+    }
+    trace.boutonsVus = boutons.length;
+    trace.attenduMs = attendu;
 
-    if (!boutons[i]) break;
+    if (!boutons[i]) {
+      trace.arret = `aucune pastille de description pour l'image ${i + 1}`;
+      /*
+       * Diagnostic : on ne peut pas inspecter ce DOM a distance, et deux
+       * selecteurs successifs ont echoue. Plutot qu'un troisieme pari, on
+       * remonte l'inventaire des controles reellement visibles — le vrai
+       * libelle de la pastille apparaitra dedans.
+       */
+      trace.pieces = !!document.querySelector('[data-testid="attachments"]');
+      trace.candidats = Array.from(document.querySelectorAll('button, [role="button"], a'))
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => `${el.getAttribute('aria-label') || ''}|${(el.textContent || '').trim()}`.slice(0, 44))
+        .filter((s) => s !== '|')
+        .slice(0, 70);
+      break;
+    }
 
     boutons[i].click();
     const champ = await attendre('champAlt', 4000);
-    if (!champ) break;
+    if (!champ) {
+      trace.arret = `champ de description absent apres clic sur l'image ${i + 1}`;
+      break;
+    }
 
     champ.focus();
     document.execCommand('insertText', false, texte);
     await dors(200);
+    // Ce que le champ porte vraiment : « clique puis fais confiance » est
+    // exactement ce qui a laisse passer des posts sans alternative.
+    trace.ecrit = (champ.value ?? champ.textContent ?? '').length;
 
     const valider = trouver('validerAlt');
     if (valider) valider.click();
+    else trace.arret = 'bouton de validation de la description introuvable';
     await dors(500);
     poses++;
   }
@@ -529,7 +693,22 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
   rapport.compte = actif;
 
   if (comptesAutorises?.length) {
-    const attendus = comptesAutorises.map((c) => String(c).replace(/^@/, '').toLowerCase());
+    /*
+     * La page d'options enregistre des objets `{ id, pseudo }` — l'identifiant
+     * numerique quand on a pu le detecter, le pseudo saisi a la main sinon.
+     * On lisait chaque entree comme une chaine : `String(objet)` rendait
+     * ==« [object Object] »==, que ni l'identifiant ni le pseudo ne pouvaient
+     * egaler. Consequence exactement inverse de l'intention : des qu'un compte
+     * etait inscrit, ==tous== les comptes etaient refuses, y compris le bon.
+     * Seule une liste vide passait, parce qu'elle saute ce bloc.
+     *
+     * On aplatit donc les deux champs, et on accepte encore les entrees en
+     * chaine au cas ou d'anciens reglages en contiendraient.
+     */
+    const attendus = comptesAutorises
+      .flatMap((c) => (typeof c === 'string' ? [c] : [c?.id, c?.pseudo]))
+      .filter(Boolean)
+      .map((v) => String(v).replace(/^@/, '').toLowerCase());
     const permis =
       (actif.id && attendus.includes(actif.id)) ||
       (actif.pseudo && attendus.includes(actif.pseudo.toLowerCase()));
@@ -551,7 +730,24 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
   if (!ecriture.ok) return rapport;
   rapport.trace = {};
   rapport.images = await joindreImages(images, rapport.trace);
-  rapport.alts = await ecrireAlts(alts);
+
+  /*
+   * ==L'attente du televersement vient avant les alternatives, pas apres.==
+   * La vignette s'affiche des le choix du fichier, mais « Add description »
+   * n'apparait qu'une fois le media monte chez X. On la cherchait donc dans
+   * une page ou elle n'existait pas encore, et le rapport concluait a son
+   * absence. Le bouton d'envoi, inactif pendant la montee, sert de temoin.
+   */
+  rapport.attenteEnvoi = 0;
+  if (images?.length) {
+    for (let i = 0; i < 40 && !boutonEnvoi(); i++) {
+      await dors(500);
+      rapport.attenteEnvoi = (i + 1) * 500;
+    }
+  }
+
+  rapport.traceAlt = {};
+  rapport.alts = await ecrireAlts(alts, rapport.traceAlt);
 
   /*
    * L'horaire vient apres les images : le formulaire de X ouvre une couche
@@ -562,6 +758,8 @@ async function composer({ texte, images, alts, publier: doitPublier, comptesAuto
    * la confirmation attend.
    */
   if (programmerLe) {
+    // L'attente du televersement a deja eu lieu plus haut : programmer trop
+    // tot faisait repondre a X « The content of your post is invalid ».
     rapport.horaire = await programmerChezX(programmerLe, doitPublier);
     // « Programme » veut dire parti chez X, pas « heure saisie » : c est la
     // difference que le premier essai avait effacee.
