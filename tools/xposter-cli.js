@@ -42,20 +42,81 @@ const BASE = `http://127.0.0.1:${PORT}`;
 if (!action) { console.error('Action manquante : programmer | maintenant | lister | annuler | capturer | tweets'); process.exit(1); }
 if (!TOKEN) { console.error('Jeton manquant : --token, ou XPOSTER_TOKEN.'); process.exit(1); }
 
-const TYPES = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
+/*
+ * Formats acceptes, par famille. X ne les melange pas : un post porte jusqu'a
+ * quatre images, OU une seule video. Le GIF reste range avec les images — X lui
+ * accorde un texte alternatif, contrairement a la video.
+ */
+const IMAGE_TYPES = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+const VIDEO_TYPES = {
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.mov': 'video/quicktime',
+  '.webm': 'video/webm',
+};
 
-/** X n'accepte que quatre images ; on le dit ici plutot que de tronquer en silence. */
-function chargerImages(chemins) {
-  if (chemins.length > 4) throw new Error(`X accepte 4 images au maximum, ${chemins.length} fournies`);
-  return chemins.map((p) => {
-    const ext = path.extname(p).toLowerCase();
-    const type = TYPES[ext];
-    if (!type) throw new Error(`format non gere : ${p}`);
+/*
+ * Poids maximal d'un media sur le disque.
+ *
+ * Ce n'est pas la limite de X — 512 Mo pour une video — mais celle du chemin
+ * qu'on emprunte : le fichier voyage en base64, qui l'alourdit d'un tiers, et
+ * une publication programmee cote extension attend dans `chrome.storage.local`,
+ * plafonne a 10 Mo. Six mega-octets en pesent huit une fois encodes : c'est le
+ * plus gros qui laisse encore de la place a la file.
+ */
+const MAX_MEDIA_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Lit les medias sur le disque et les encode.
+ *
+ * Les regles de X sont verifiees ici plutot qu'au moment du depot : une erreur
+ * de la ligne de commande se lit, une piece jointe refusee par le composeur se
+ * devine.
+ */
+function loadMedia(paths) {
+  const media = paths.map((filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    const type = IMAGE_TYPES[ext] || VIDEO_TYPES[ext];
+    if (!type) {
+      const known = [...Object.keys(IMAGE_TYPES), ...Object.keys(VIDEO_TYPES)].join(' ');
+      throw new Error(`format non gere : ${filePath} (connus : ${known})`);
+    }
+
+    const bytes = fs.statSync(filePath).size;
+    if (bytes > MAX_MEDIA_BYTES) {
+      throw new Error(
+        `${filePath} pese ${(bytes / 1048576).toFixed(1)} Mo, au-dela des `
+        + `${MAX_MEDIA_BYTES / 1048576} Mo que le pont sait transporter`,
+      );
+    }
+
     return {
-      nom: path.basename(p),
-      dataUrl: `data:${type};base64,${fs.readFileSync(p).toString('base64')}`,
+      nom: path.basename(filePath),
+      dataUrl: `data:${type};base64,${fs.readFileSync(filePath).toString('base64')}`,
+      // Le composeur s'en sert pour attendre plus longtemps : X transcode une
+      // video avant de reactiver le bouton d'envoi.
+      video: Boolean(VIDEO_TYPES[ext]),
     };
   });
+
+  const videos = media.filter((m) => m.video);
+  if (videos.length && videos.length !== media.length) {
+    throw new Error('X ne melange pas video et images dans un meme post');
+  }
+  if (videos.length > 1) {
+    throw new Error(`X accepte une seule video, ${videos.length} fournies`);
+  }
+  if (!videos.length && media.length > 4) {
+    throw new Error(`X accepte 4 images au maximum, ${media.length} fournies`);
+  }
+
+  return media;
 }
 
 function construireCharge() {
@@ -63,18 +124,29 @@ function construireCharge() {
   if (!fichier) throw new Error('--fichier manquant');
   const spec = JSON.parse(fs.readFileSync(fichier, 'utf8'));
 
-  const images = chargerImages(spec.images || []);
-  const alts = spec.alts || [];
+  // `medias` est le nom juste depuis que la video passe ; `images` reste lu
+  // pour que les fichiers deja ecrits continuent de marcher.
+  const media = loadMedia(spec.medias || spec.images || []);
 
-  if (alts.length && alts.length !== images.length) {
-    // Une image sans texte alternatif est invisible pour un lecteur d'ecran ;
-    // mieux vaut refuser que de publier un decalage silencieux.
-    throw new Error(`${images.length} image(s) mais ${alts.length} texte(s) alternatif(s)`);
+  /*
+   * ==Ce systeme ne pose plus de texte alternatif.== Decision de Karim, prise
+   * le 06/09/2026 : la chaine n'en depose sur aucun media, jamais.
+   *
+   * Le champ `alts` d'un fichier de charge est donc ignore, et on le dit
+   * plutot que de le laisser croire qu'il a servi. La liste part toujours
+   * vide, ce qui court-circuite `writeAlts()` cote composeur.
+   */
+  if (spec.alts?.length) {
+    console.log('note : `alts` ignore — cette chaine ne pose plus de texte alternatif.');
   }
+  const alts = [];
 
   // `programmation` : "extension" ou "x". Absent, le reglage global tranche.
   return {
-    texte: spec.texte || '', images, alts,
+    texte: spec.texte || '',
+    // La cle du protocole reste `images` : l'extension la lit sous ce nom.
+    images: media,
+    alts,
     quand: spec.quand,
     programmation: spec.programmation,
     publier: spec.publier === true,

@@ -135,6 +135,27 @@ function currentText(area) {
 }
 
 /**
+ * Les lignes non vides d'un texte, espaces internes normalises.
+ *
+ * ==On compare la structure, pas la mise en forme.== La verification d'origine
+ * ecrasait les blancs en une seule espace des DEUX cotes : un texte dont tous
+ * les sauts de ligne avaient disparu devenait alors identique a celui qu'on
+ * avait demande, et le rapport annoncait `ok: true` sur un post mis en un seul
+ * bloc. Le 06/09/2026, deux publications sont parties comme ca.
+ *
+ * En comparant ligne a ligne, un paragraphe perdu ne peut plus passer pour un
+ * detail d'espacement.
+ */
+function textLines(value) {
+  return (value || '')
+    .split('\n')
+    .map((line) => line.replace(/[ 	]+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+const sameLines = (a, b) => a.length === b.length && a.every((line, i) => line === b[i]);
+
+/**
  * Ecrit le texte dans le composeur.
  *
  * **Pourquoi un collage et non `insertText`.** L editeur de X detecte les
@@ -164,12 +185,13 @@ async function writeText(texte) {
   paste();
   await sleep(400);
 
-  // Comparaison indulgente sur les espaces : l editeur normalise, et on ne
-  // veut pas echouer sur une nuance d espacement.
-  const waited = texte.replace(new RegExp("\\s+", 'g'), ' ').trim();
-  const got = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
+  // Indulgente sur les espaces d'une meme ligne, stricte sur les sauts de
+  // ligne : c'est la structure du post qui doit arriver intacte.
+  const waited = textLines(texte);
 
-  if (got === waited) return { ok: true, methode: 'collage' };
+  if (sameLines(textLines(currentText(area)), waited)) {
+    return { ok: true, methode: 'collage' };
+  }
 
   /*
    * Le collage echoue a chaque fois, et ce n'est pas une anomalie.
@@ -186,18 +208,37 @@ async function writeText(texte) {
    */
   console.debug(LOG, 'collage ignore par l editeur, repli sur insertText');
   await clearComposer(area);
-  document.execCommand('insertText', false, texte);
+  /*
+   * ==Un bloc par ligne, et `insertParagraph` entre eux.==
+   *
+   * `insertText` recevant le texte entier avale ses sauts de ligne : l'editeur
+   * de X est un Draft.js, il ne cree un nouveau bloc que sur un
+   * `insertParagraph`. Le post partait donc d'une seule coulee, les phrases
+   * collees les unes aux autres.
+   *
+   * On decoupe donc nous-memes. Une ligne vide de la source produit un
+   * `insertParagraph` sans texte, ce qui rend la ligne blanche entre deux
+   * paragraphes.
+   */
+  const blocs = texte.split('\n');
+  for (let i = 0; i < blocs.length; i += 1) {
+    if (i > 0) document.execCommand('insertParagraph', false, null);
+    if (blocs[i]) document.execCommand('insertText', false, blocs[i]);
+  }
   await sleep(400);
 
-  const gotAfterRetry = currentText(area).replace(new RegExp("\\s+", 'g'), ' ').trim();
-  if (gotAfterRetry === waited) return { ok: true, methode: 'insertText' };
+  const gotAfterRetry = textLines(currentText(area));
+  if (sameLines(gotAfterRetry, waited)) return { ok: true, methode: 'insertText' };
 
-  // On ne laisse pas un composeur a moitie rempli sans le dire.
+  // On ne laisse pas un composeur a moitie rempli sans le dire. Le compte de
+  // lignes est en clair : c'est lui qui trahit un post mis en un seul bloc.
   return {
     ok: false,
     methode: 'aucune',
-    waited: waited.slice(0, 120),
-    got: gotAfterRetry.slice(0, 120),
+    lignesAttendues: waited.length,
+    lignesObtenues: gotAfterRetry.length,
+    waited: waited.join(' | ').slice(0, 160),
+    got: gotAfterRetry.join(' | ').slice(0, 160),
   };
 }
 
@@ -491,7 +532,10 @@ async function scheduleAtX(quand, confirmer) {
 }
 
 /**
- * Joint les images. X en accepte quatre au maximum.
+ * Joint les medias : quatre images au maximum, ou une seule video.
+ *
+ * Le champ fichier de X accepte les deux familles ; c'est la ligne de commande
+ * qui refuse un melange, avant meme que le composeur s'ouvre.
  *
  * `trace` est rempli au fur et a mesure : un rapport qui dit seulement
  * « zero image » ne distingue pas un champ introuvable d'un fichier refuse
@@ -507,7 +551,8 @@ async function attachImages(images, trace = {}) {
   trace.field = field.getAttribute('data-testid') || field.getAttribute('accept') || 'input';
 
   const dt = new DataTransfer();
-  const files = images.slice(0, 4).map((img, i) => toFile(img.dataUrl, img.nom || `image-${i + 1}.png`));
+  const maxi = images.some((m) => m.video) ? 1 : 4;
+  const files = images.slice(0, maxi).map((img, i) => toFile(img.dataUrl, img.nom || `media-${i + 1}.png`));
   trace.construits = files.map((f) => ({ nom: f.name, type: f.type, bytes: f.size }));
 
   for (const f of files) {
@@ -521,14 +566,56 @@ async function attachImages(images, trace = {}) {
 
   field.dispatchEvent(new Event('change', { bubbles: true }));
 
-  // Le televersement doit finir avant qu'on puisse toucher aux textes alternatifs.
-  await sleep(1200 + dt.files.length * 900);
-
-  // Ce que X a reellement monte dans le composeur, et non ce qu'on lui a
-  // tendu : c'est la seule mesure qui compte.
-  trace.vignettesVisibles = document.querySelectorAll(
+  /*
+   * ==On attend la vignette, on ne la suppose pas.==
+   *
+   * Le comptage se faisait apres une pause fixe d'environ deux secondes. Elle
+   * suffisait a une image et pas a une video : X en lit les metadonnees et
+   * fabrique une previsualisation avant de monter quoi que ce soit. Le meme
+   * fichier passait un essai sur deux, et le rapport annoncait ==« images: 0 »==
+   * pour une video pourtant acceptee par le champ — `apresAffectation: 1` et
+   * `vignettesVisibles: 0` dans la meme trace.
+   *
+   * Le bouton d'envoi ne sert pas de temoin ici : il est deja actif des que le
+   * texte est ecrit, donc il ne dit rien de l'etat du televersement.
+   */
+  const compterVignettes = () => document.querySelectorAll(
     '[data-testid="attachments"] img, [data-testid="attachments"] video, [aria-label*="Media"] img'
   ).length;
+
+  const plafondVignette = images.some((m) => m.video) ? 120000 : 20000;
+  const departVignette = Date.now();
+  for (;;) {
+    // Ce que X a reellement monte dans le composeur, et non ce qu'on lui a
+    // tendu : c'est la seule mesure qui compte.
+    trace.vignettesVisibles = compterVignettes();
+    if (trace.vignettesVisibles) break;
+    if (Date.now() - departVignette >= plafondVignette) break;
+    await sleep(500);
+  }
+  trace.attenteVignette = Date.now() - departVignette;
+
+  /*
+   * La vignette parait avant la fin de la montee. Programmer a cet instant,
+   * c'est confier a X un post dont le media est encore en cours d'envoi : on
+   * laisse donc la barre de progression disparaitre avant de rendre la main.
+   *
+   * ==La barre se cherche dans la zone des pieces jointes, jamais dans le
+   * document.== Le compteur de caracteres de X est lui aussi un
+   * `role="progressbar"`, et il ne disparait jamais : la boucle brulait ses
+   * deux minutes de plafond a chaque video, montee finie depuis longtemps.
+   */
+  const zonePieces = () => document.querySelector('[data-testid="attachments"]');
+  const monteeEnCours = () => {
+    const zone = zonePieces();
+    return Boolean(zone && zone.querySelector('[role="progressbar"]'));
+  };
+
+  const departMontee = Date.now();
+  while (monteeEnCours() && Date.now() - departMontee < plafondVignette) {
+    await sleep(500);
+  }
+  trace.attenteMontee = Date.now() - departMontee;
 
   /*
    * On retournait `champ.files.length`. X vide la liste du champ des qu'il a
@@ -833,7 +920,14 @@ async function compose({ texte, images, alts, publier: shouldPublish, comptesAut
    */
   rapport.attenteEnvoi = 0;
   if (images?.length) {
-    for (let i = 0; i < 40 && !sendButton(); i++) {
+    /*
+     * Une video ne monte pas au rythme d'une image : X la transcode avant de
+     * reactiver le bouton d'envoi. Les vingt secondes qui suffisaient aux
+     * images laissaient une video a mi-chemin, et le composeur repartait avec
+     * une piece jointe incomplete.
+     */
+    const tours = images.some((m) => m.video) ? 240 : 40;
+    for (let i = 0; i < tours && !sendButton(); i++) {
       await sleep(500);
       rapport.attenteEnvoi = (i + 1) * 500;
     }
