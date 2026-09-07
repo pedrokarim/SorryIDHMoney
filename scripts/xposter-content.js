@@ -894,8 +894,21 @@ async function compose({ texte, images, alts, publier: shouldPublish, comptesAut
       (active.pseudo && expected.includes(active.pseudo.toLowerCase()));
 
     if (!permis) {
-      rapport.refus = active.id || active.pseudo
-        ? `compte non autorise : ${actif.pseudo ? '@' + actif.pseudo : ''} ${actif.id || ''}`.trim()
+      /*
+       * ==Le refus disait `actif`, la variable s'appelle `active`.==
+       *
+       * La faute ne vivait que dans cette branche, celle qu'on n'atteint que
+       * lorsqu'un compte est effectivement refuse — donc jamais tant que la
+       * liste blanche restait vide. Le jour ou elle a servi, le garde-fou a
+       * leve `actif is not defined` au lieu de nommer le compte fautif :
+       * l'operateur recevait la consequence, pas la cause.
+       *
+       * Le message dit maintenant les deux : le compte trouve, et ceux qui
+       * etaient attendus.
+       */
+      const vu = active.pseudo ? `@${active.pseudo}` : active.id;
+      rapport.refus = vu
+        ? `compte non autorise : ${vu} — attendus : ${expected.join(', ')}`
         : 'compte indeterminable — session absente ?';
       return rapport;
     }
