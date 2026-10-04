@@ -215,7 +215,13 @@ export async function scheduledAtX() {
  */
 export async function fetchTweets(charge = {}) {
   const compte = (charge.compte || 'ascencia64').replace(/^@/, '');
-  const cap = charge.cap || 0;
+  /*
+   * Le plafond arrive sous le nom `maximum` : c'est celui que la ligne de
+   * commande envoie. On lisait `cap`, que personne n'ecrit — le plafond etait
+   * donc ignore sans bruit, et un releve « des dix derniers » faisait defiler
+   * tout le compte. Zero ou absent : pas de plafond, releve complet.
+   */
+  const cap = Math.max(0, Number(charge.maximum ?? charge.cap) || 0);
   const url = `https://x.com/${compte}`;
 
   const [precedent] = await chrome.tabs.query({ active: true, currentWindow: true });

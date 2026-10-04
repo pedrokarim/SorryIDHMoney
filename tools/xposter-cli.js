@@ -20,7 +20,8 @@
  *   node tools/xposter-cli.js maintenant --fichier post.json --token X
  *   node tools/xposter-cli.js lister --token X
  *   node tools/xposter-cli.js capturer --sortie ecran.png --token X
- *   node tools/xposter-cli.js tweets --token X [--compte ascencia64] [--sortie fil.json]
+ *   node tools/xposter-cli.js tweets --token X [--compte ascencia64] [--maximum 20] [--sortie fil.json]
+ *     (--maximum : s arrete des que ce nombre de posts est releve ; sans lui, tout le fil defile)
  *   node tools/xposter-cli.js annuler --id p123 --token X
  *   node tools/xposter-cli.js relancer --id p123 --token X
  *   node tools/xposter-cli.js programmes --token X
