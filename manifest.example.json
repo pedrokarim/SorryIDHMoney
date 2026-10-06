@@ -20,7 +20,8 @@
     "scripting",
     "declarativeNetRequest",
     "alarms",
-    "tabs"
+    "tabs",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -180,6 +181,18 @@
       "js": [
         "scripts/xposter-content.js"
       ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.facebook.com/*",
+        "https://web.facebook.com/*",
+        "https://m.facebook.com/*"
+      ],
+      "js": [
+        "scripts/facebook-content.js"
+      ],
+      "type": "module",
       "run_at": "document_idle"
     }
   ],

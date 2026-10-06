@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>File Facebook — SorryIDHMoney</title>
+  <link rel="stylesheet" href="../styles/base.css">
+  <link rel="stylesheet" href="../styles/fb-downloader.css">
+</head>
+<body>
+  <header class="fb-tete">
+    <h1>File de téléchargement Facebook</h1>
+    <p class="fb-sous-titre">
+      Les vidéos repérées sur facebook.com qui n'ont pas de mp4 direct –
+      lives longs, flux DASH. On exporte la liste, yt-dlp fait le reste.
+    </p>
+  </header>
+
+  <section class="fb-barre">
+    <button id="tout-cocher" class="fb-bouton fb-secondaire">Tout cocher</button>
+    <button id="exporter" class="fb-bouton">Exporter lives.txt</button>
+    <button id="copier-commande" class="fb-bouton">Copier la commande yt-dlp</button>
+    <button id="copier-urls" class="fb-bouton fb-secondaire">Copier les URL</button>
+    <span class="fb-espace"></span>
+    <button id="retirer" class="fb-bouton fb-secondaire">Retirer la sélection</button>
+    <button id="vider" class="fb-bouton fb-danger">Vider la file</button>
+  </section>
+
+  <p id="etat" class="fb-etat"></p>
+
+  <table class="fb-table">
+    <thead>
+      <tr>
+        <th class="fb-col-case"><input type="checkbox" id="case-entete"></th>
+        <th>Titre</th>
+        <th class="fb-col-date">Date</th>
+        <th class="fb-col-duree">Durée</th>
+        <th class="fb-col-source">Source</th>
+        <th class="fb-col-lien">Lien</th>
+      </tr>
+    </thead>
+    <tbody id="liste"></tbody>
+  </table>
+
+  <section class="fb-aide">
+    <h2>Rappel</h2>
+    <p>
+      La commande copiée suppose <code>yt-dlp</code> accessible dans le PATH et
+      un <code>lives.txt</code> dans le dossier courant :
+    </p>
+    <pre id="apercu-commande"></pre>
+    <p>
+      Pour une vidéo qui demande d'être connecté, garder
+      <code>--cookies-from-browser chrome</code> – yt-dlp reprend la session du
+      navigateur, aucun mot de passe n'est écrit nulle part.
+    </p>
+  </section>
+
+  <script type="module" src="fb-downloader.js"></script>
+</body>
+</html>

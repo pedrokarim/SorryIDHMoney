@@ -1,0 +1,137 @@
+/* File de téléchargement Facebook — reprend les tokens de base.css */
+
+body {
+  margin: 0;
+  padding: 24px 32px 48px;
+  background: var(--bg-primary);
+  color: var(--dark);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+.fb-tete h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: var(--primary-dark);
+}
+
+.fb-sous-titre {
+  margin: 0 0 20px;
+  color: var(--gray-dark);
+  max-width: 70ch;
+}
+
+.fb-barre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.fb-espace { flex: 1; }
+
+.fb-bouton {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--white);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fb-bouton:hover { background: var(--primary-dark); }
+.fb-bouton:disabled { opacity: .45; cursor: not-allowed; }
+
+.fb-secondaire { background: var(--secondary); }
+.fb-secondaire:hover { background: var(--secondary-dark); }
+
+.fb-danger { background: var(--danger); }
+.fb-danger:hover { background: var(--danger-dark); }
+
+.fb-etat {
+  min-height: 20px;
+  margin: 0 0 12px;
+  color: var(--gray-dark);
+  font-size: 13px;
+}
+
+.fb-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fb-table th,
+.fb-table td {
+  padding: 9px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-light);
+  vertical-align: top;
+}
+
+.fb-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--gray-dark);
+}
+
+.fb-table tbody tr:hover { background: var(--bg-secondary); }
+
+.fb-col-case { width: 34px; }
+.fb-col-date { width: 110px; }
+.fb-col-duree { width: 90px; }
+.fb-col-source { width: 130px; }
+.fb-col-lien { width: 80px; }
+
+.fb-etiquette {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fb-etiquette-direct {
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.fb-etiquette-ytdlp {
+  background: var(--warning-light);
+  color: var(--warning-dark);
+}
+
+.fb-vide {
+  padding: 32px 10px;
+  color: var(--gray);
+  text-align: center;
+}
+
+.fb-aide {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-light);
+  max-width: 80ch;
+  color: var(--gray-dark);
+}
+
+.fb-aide h2 { font-size: 15px; color: var(--dark); }
+
+.fb-aide pre {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--secondary-dark);
+  color: var(--white);
+  overflow-x: auto;
+  font-size: 12.5px;
+}
+
+.fb-aide code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  font-size: 12.5px;
+}

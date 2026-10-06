@@ -17,6 +17,22 @@ import "./scripts/avb/avb-manager.js";
  * qu'une publication programmee parte meme si l'outil qui l'a deposee est
  * eteint.
  */
+/*
+ * Module « Telechargement Facebook ».
+ *
+ * Le content script analyse la page et trouve les sources ; le service worker
+ * ne fait que deux choses : lancer le telechargement quand un mp4 progressif
+ * existe, et tenir la file pour tout le reste (lives longs, flux DASH).
+ */
+import {
+  ajouterAFile,
+  ajouterLotAFile,
+  telechargerVideo,
+} from "./scripts/facebook-queue.js";
+import { installerRegleEntetes } from "./scripts/facebook-entetes.js";
+
+installerRegleEntetes();
+
 import { poll, installIdlePoll, isIdleAlarm } from "./scripts/xposter-bridge.js";
 import { onAlarm as onXPosterAlarm, cancel as cancelPost, captureComposer, rearm, replay } from "./scripts/xposter-queue.js";
 
@@ -351,6 +367,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // connaissent pas cette action.
       cancelPost(message.id).then(() => sendResponse({ ok: true }));
       return true;
+    case "fbTelecharger":
+      telechargerVideo(message.video)
+        .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
+      return true;
+    case "fbFileAjouter":
+      ajouterAFile(message.video)
+        .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
+      return true;
+    case "fbFileAjouterLot":
+      ajouterLotAFile(message.videos || [])
+        .then((r) => sendResponse({ ok: true, ...r }))
+        .catch((e) => sendResponse({ ok: false, erreur: String(e.message || e) }));
+      return true;
+    case "fbFileOuvrir":
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("interfaces/fb-downloader.html"),
+      });
+      return false;
     case "openStatsPopup":
       chrome.windows.create({
         url: chrome.runtime.getURL("interfaces/twitch-stats.html"),
