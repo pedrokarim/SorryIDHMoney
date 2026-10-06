@@ -151,6 +151,7 @@ function construireCharge() {
     quand: spec.quand,
     programmation: spec.programmation,
     publier: spec.publier === true,
+    arreterAvantEnvoi: spec.arreterAvantEnvoi === true,
   };
 }
 

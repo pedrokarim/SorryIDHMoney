@@ -121,12 +121,57 @@ function sendButton() {
   return (modal && candidates.find((b) => modal.contains(b))) || candidates[0] || null;
 }
 
-/** Vide le composeur avant d ecrire, pour ne jamais ajouter a du residu. */
+/**
+ * Vide le composeur avant d ecrire, pour ne jamais ajouter a du residu.
+ *
+ * ==Un seul passage ne suffit pas sur un composeur qui vient d'etre remonte.==
+ * Le 09/09/2026, la reparation d'apres la boite d'horaire rendait un texte de
+ * sept lignes dont la PREMIERE etait le residu de la version aplatie — les six
+ * autres justes. Le `selectAll` avait porte sur un editeur encore en cours de
+ * reconstruction et n'avait pas tout pris.
+ *
+ * On vide donc jusqu'a ce que ce soit vide, et on le dit quand ca ne l'est pas.
+ */
 async function clearComposer(area) {
-  area.focus();
-  document.execCommand('selectAll', false, null);
-  document.execCommand('delete', false, null);
-  await sleep(120);
+  // On ne vide pas un editeur qui bouge encore.
+  await waitStable(area, { lectures: 2, pas: 300, plafond: 8000 });
+
+  for (let essai = 0; essai < 6; essai++) {
+    area.focus();
+    await sleep(200);
+    document.execCommand('selectAll', false, null);
+    document.execCommand('delete', false, null);
+    await sleep(500);
+    if (!currentText(area)) return true;
+  }
+  return !currentText(area);
+}
+
+/**
+ * Attend que le composeur arrete de bouger.
+ *
+ * ==C'est une interface web, pas une API.== Tout ce qui a casse ce soir vient
+ * de la : on vidait et on reecrivait a 120 ms d'intervalle, sur un editeur que
+ * X etait en train de remonter. Le vidage atteignait son modele, la reecriture
+ * tombait dans un noeud deja detache — et le post est parti VIDE.
+ *
+ * On ne devine donc plus le bon moment : on lit le composeur jusqu'a ce que
+ * son contenu soit identique plusieurs fois de suite. Tant qu'il bouge, on
+ * attend.
+ */
+async function waitStable(area, { lectures = 3, pas = 400, plafond = 15000 } = {}) {
+  const deadline = Date.now() + plafond;
+  let precedent = null;
+  let stables = 0;
+
+  while (Date.now() < deadline) {
+    const vu = currentText(area);
+    stables = vu === precedent ? stables + 1 : 0;
+    precedent = vu;
+    if (stables >= lectures) return true;
+    await sleep(pas);
+  }
+  return false;
 }
 
 /** Texte reellement present dans le composeur, sauts de ligne normalises. */
@@ -135,7 +180,7 @@ function currentText(area) {
 }
 
 /**
- * Les lignes non vides d'un texte, espaces internes normalises.
+ * Les lignes d'un texte, espaces internes normalises, blancs de bord rognes.
  *
  * ==On compare la structure, pas la mise en forme.== La verification d'origine
  * ecrasait les blancs en une seule espace des DEUX cotes : un texte dont tous
@@ -143,14 +188,27 @@ function currentText(area) {
  * avait demande, et le rapport annoncait `ok: true` sur un post mis en un seul
  * bloc. Le 06/09/2026, deux publications sont parties comme ca.
  *
- * En comparant ligne a ligne, un paragraphe perdu ne peut plus passer pour un
- * detail d'espacement.
+ * ==Et la correction a refait la meme erreur d'un cran plus bas.== La version
+ * du 06/09 comparait ligne a ligne, mais jetait les lignes vides des deux
+ * cotes avec un `.filter(Boolean)`. Un post dont les lignes blanches entre
+ * paragraphes avaient disparu — paragraphes colles les uns aux autres, sans
+ * respiration — comparait donc egal, et le rapport annoncait encore `ok: true`.
+ * Le 08/09/2026, une publication est partie comme ca.
+ *
+ * La lecon est la meme deux fois : **une verification ne doit jamais normaliser
+ * ce qu'elle est censee verifier.** Une ligne vide au milieu EST la structure du
+ * post. On ne rogne donc que les blancs de tete et de queue, qui eux ne sont
+ * jamais visibles chez X.
  */
 function textLines(value) {
-  return (value || '')
+  const lines = (value || '')
     .split('\n')
-    .map((line) => line.replace(/[ 	]+/g, ' ').trim())
-    .filter(Boolean);
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim());
+
+  while (lines.length && !lines[0]) lines.shift();
+  while (lines.length && !lines[lines.length - 1]) lines.pop();
+
+  return lines;
 }
 
 const sameLines = (a, b) => a.length === b.length && a.every((line, i) => line === b[i]);
@@ -222,10 +280,31 @@ async function writeText(texte) {
    */
   const blocs = texte.split('\n');
   for (let i = 0; i < blocs.length; i += 1) {
-    if (i > 0) document.execCommand('insertParagraph', false, null);
-    if (blocs[i]) document.execCommand('insertText', false, blocs[i]);
+    // Une pause par bloc. L'editeur recalcule sa selection entre deux
+    // insertions ; enchainer sans respirer produit des blocs fantomes.
+    if (i > 0) {
+      document.execCommand('insertParagraph', false, null);
+      await sleep(140);
+    }
+    if (blocs[i]) {
+      document.execCommand('insertText', false, blocs[i]);
+    } else if (i > 0 && i < blocs.length - 1) {
+      /*
+       * ==Un bloc vide ne survit pas seul.== Deux `insertParagraph` d'affilee
+       * ne laissent pas de bloc entre eux : Draft.js n'en materialise pas un
+       * qui n'a jamais recu de contenu. Les paragraphes arrivaient donc colles,
+       * sans la ligne blanche qui les separe — c'est ce qui est parti le
+       * 08/09/2026.
+       *
+       * Une espace suffit a donner un contenu au bloc. Elle est seule sur sa
+       * ligne, donc invisible dans le post.
+       */
+      document.execCommand('insertText', false, ' ');
+    }
+    await sleep(120);
   }
-  await sleep(400);
+  await sleep(900);
+  await waitStable(area, { lectures: 2, pas: 300, plafond: 8000 });
 
   const gotAfterRetry = textLines(currentText(area));
   if (sameLines(gotAfterRetry, waited)) return { ok: true, methode: 'insertText' };
@@ -239,6 +318,58 @@ async function writeText(texte) {
     lignesObtenues: gotAfterRetry.length,
     waited: waited.join(' | ').slice(0, 160),
     got: gotAfterRetry.join(' | ').slice(0, 160),
+  };
+}
+
+/**
+ * Relit le composeur au dernier moment, et le repare s'il a derive.
+ *
+ * ==Verifier apres l'ecriture ne suffit pas.== `writeText` controlait son
+ * propre travail et rendait la main ; entre ce controle et le clic qui envoie,
+ * il se passe encore trois choses — le televersement des medias, la boite
+ * d'horaire, et sa fermeture, qui *remet le composeur en place*. C'est la que
+ * les paragraphes disparaissaient : le texte partait d'un bloc alors que le
+ * rapport annoncait `ecriture.ok: true`, parfaitement exact au moment ou il
+ * avait ete calcule.
+ *
+ * Le 09/09/2026, deux publications sont parties comme ca.
+ *
+ * On relit donc **juste avant le clic terminal**, et on reecrit si la
+ * structure a bouge. Si la reparation echoue, on ne clique pas : un post
+ * aplati ne part pas.
+ */
+async function ensureText(texte) {
+  const area = await waitFor('textArea', 4000);
+  if (!area) return { ok: false, erreur: 'composeur introuvable a la relecture' };
+
+  const voulu = textLines(texte);
+
+  /*
+   * ==Cette fonction ne repare plus. Elle constate.==
+   *
+   * Elle a d'abord tente de reecrire le texte quand il avait derive, et ca a
+   * produit pire que le probleme : `selectAll` + `delete` atteint bien l'etat
+   * interne de X, `insertText` ne rejoignait que le DOM. La relecture voyait
+   * donc ses sept lignes dans `innerText` pendant que le modele de X etait
+   * vide — et X a programme un post SANS AUCUN TEXTE, le 09/09/2026.
+   *
+   * Vérifier le DOM n'est pas vérifier ce que X va publier. Tant qu'on n'a pas
+   * de signal fiable sur son modele, on ne touche plus au composeur a ce
+   * stade : on lit, et si ca ne colle pas, on n'envoie pas.
+   */
+  let vu = [];
+  for (let i = 0; i < 5; i++) {
+    vu = textLines(currentText(area));
+    if (sameLines(vu, voulu)) return { ok: true, lignes: voulu.length, essais: i + 1 };
+    await sleep(300);
+  }
+
+  return {
+    ok: false,
+    lignesAttendues: voulu.length,
+    lignesObtenues: vu.length,
+    attendu: voulu.join(' | ').slice(0, 200),
+    obtenu: vu.join(' | ').slice(0, 200),
   };
 }
 
@@ -264,7 +395,7 @@ function toFile(dataUrl, nom) {
  * l'horaire est saisi et le composeur attend — meme regle que partout
  * ailleurs ici : on prepare, la derniere main revient a quelqu'un.
  */
-async function scheduleAtX(quand, confirmer) {
+async function scheduleAtX(quand, confirmer, texte, arreterAvantEnvoi) {
   const date = new Date(quand);
 
   /*
@@ -462,6 +593,10 @@ async function scheduleAtX(quand, confirmer) {
   confirmButton.click();
   await sleep(1800);
 
+  // La boite vient de se refermer : le composeur se remonte derriere elle. On
+  // lui laisse le temps AVANT de le toucher — c'est ce qui manquait.
+  await sleep(1500);
+
   const stillOpen = document.querySelectorAll('select').length >= 5;
   if (stillOpen) {
     return { ok: false, confirme: false, relu, resume, erreur: 'boite d horaire toujours affichee apres confirmation' };
@@ -487,6 +622,43 @@ async function scheduleAtX(quand, confirmer) {
              erreur: 'aucun bouton d envoi actif apres confirmation de l heure' };
   }
 
+  /*
+   * Dernier regard avant l'envoi. La fermeture de la boite d'horaire remonte
+   * le composeur, et c'est precisement ce remontage qui ecrasait les
+   * paragraphes. On ne clique qu'apres avoir revu le texte a l'ecran.
+   */
+  /*
+   * Le composeur ne porte que les medias a ce stade : on ecrit le texte
+   * maintenant, une seule fois, sur un editeur stabilise. Puis on relit —
+   * en lecture seule, sans jamais retoucher.
+   */
+  const ecritureTardive = await writeText(texte);
+  const revu = await ensureText(texte);
+
+  if (!revu.ok) {
+    return { ok: false, confirme: true, envoye: false, relu, resume, revu,
+             ecritureTardive,
+             erreur: 'texte non conforme apres la boite d horaire, envoi annule' };
+  }
+
+  /*
+   * La reparation a pu remonter le composeur : la reference capturee plus haut
+   * pointerait alors sur un bouton detache du document, et le clic ne ferait
+   * rien tout en paraissant reussir. On la reprend.
+   */
+  sendBtn = sendButton() || sendBtn;
+
+  /*
+   * Point d'observation. Avec `arreterAvantEnvoi`, on s'arrete ici : le
+   * composeur reste a l'ecran, horaire attache, et une capture montre son etat
+   * REEL a l'instant precis ou l'envoi allait partir. C'est le seul moyen de
+   * voir ce que X a vraiment sous la main, plutot que de le deduire.
+   */
+  if (arreterAvantEnvoi) {
+    return { ok: true, confirme: true, envoye: false, arrete: true, relu, resume, revu,
+             note: 'arret avant envoi demande — le composeur est laisse a l ecran' };
+  }
+
   const libelle = (sendBtn.innerText || '').trim();
   sendBtn.click();
 
@@ -508,10 +680,10 @@ async function scheduleAtX(quand, confirmer) {
 
     // X annonce lui-meme le succes : « Your post will be sent on … ».
     if (/will be sent|sera envoy/i.test(message)) {
-      return { ok: true, confirme: true, envoye: true, libelle, relu, resume, message };
+      return { ok: true, confirme: true, envoye: true, libelle, relu, resume, revu, message };
     }
     if (/invalid|error|erreur/i.test(message)) {
-      return { ok: false, confirme: true, envoye: false, libelle, relu, resume, erreur: message };
+      return { ok: false, confirme: true, envoye: false, libelle, relu, resume, revu, erreur: message };
     }
 
     /*
@@ -521,7 +693,7 @@ async function scheduleAtX(quand, confirmer) {
      * publication que X avait bel et bien gardee.
      */
     if (!document.querySelector('[aria-modal="true"], [role="dialog"]')) {
-      return { ok: true, confirme: true, envoye: true, libelle, relu, resume };
+      return { ok: true, confirme: true, envoye: true, libelle, relu, resume, revu };
     }
   }
 
@@ -846,7 +1018,7 @@ async function publier() {
 }
 
 /** Enchainement complet. `publier` est toujours un choix conscient. */
-async function compose({ texte, images, alts, publier: shouldPublish, comptesAutorises, programmerLe }) {
+async function compose({ texte, images, alts, publier: shouldPublish, comptesAutorises, programmerLe, arreterAvantEnvoi }) {
   // Ce que le script a REELLEMENT recu : sans ca, un rapport a zero ne dit
   // pas si la charge etait vide ou si la jonction a echoue.
   const rapport = {
@@ -914,13 +1086,33 @@ async function compose({ texte, images, alts, publier: shouldPublish, comptesAut
     }
   }
 
-  const ecriture = await writeText(texte);
-  rapport.texte = ecriture.ok;
-  rapport.ecriture = ecriture;
+  /*
+   * ==Quand on programme, le texte s'ecrit EN DERNIER.==
+   *
+   * Constate a l'ecran le 09/09/2026 : la fermeture de la boite d'horaire de X
+   * ecrase les paragraphes du composeur en un seul bloc. Le texte y survit
+   * entier, sa structure non. Ecrire avant de programmer ne peut donc pas
+   * marcher, quelle que soit la reparation qu'on tente ensuite — et la
+   * reparation, elle, a deja produit un post entierement vide.
+   *
+   * On joint donc les medias, on regle l'horaire, et on ecrit le texte une
+   * seule fois, apres, sur un composeur que plus rien ne remontera. C'est
+   * exactement le chemin qui marche pour une publication immediate.
+   */
+  const ecrireMaintenant = !programmerLe;
+  let ecriture = { ok: true, differe: 'texte ecrit apres la boite d horaire' };
 
-  // Sans texte conforme, on ne joint rien et on ne publie surtout pas : mieux
-  // vaut un composeur vide qu une publication de travers.
-  if (!ecriture.ok) return rapport;
+  if (ecrireMaintenant) {
+    ecriture = await writeText(texte);
+    rapport.texte = ecriture.ok;
+    rapport.ecriture = ecriture;
+
+    // Sans texte conforme, on ne joint rien et on ne publie surtout pas : mieux
+    // vaut un composeur vide qu une publication de travers.
+    if (!ecriture.ok) return rapport;
+  } else {
+    rapport.ecriture = ecriture;
+  }
   rapport.trace = {};
   rapport.images = await attachImages(images, rapport.trace);
 
@@ -960,14 +1152,27 @@ async function compose({ texte, images, alts, publier: shouldPublish, comptesAut
   if (programmerLe) {
     // L'attente du televersement a deja eu lieu plus haut : programmer trop
     // tot faisait repondre a X « The content of your post is invalid ».
-    rapport.horaire = await scheduleAtX(programmerLe, shouldPublish);
+    rapport.horaire = await scheduleAtX(programmerLe, shouldPublish, texte, arreterAvantEnvoi);
     // « Programme » veut dire parti chez X, pas « heure saisie » : c est la
     // difference que le premier essai avait effacee.
     rapport.programme = rapport.horaire.envoye === true;
     return rapport;
   }
 
-  if (shouldPublish) rapport.publie = await publier();
+  /*
+   * Meme regle dans le chemin sans horaire : le televersement des medias passe
+   * entre l'ecriture et l'envoi, il a donc lui aussi l'occasion de remonter le
+   * composeur.
+   */
+  if (shouldPublish) {
+    rapport.revu = await ensureText(texte);
+    if (!rapport.revu.ok) {
+      rapport.publie = false;
+      rapport.erreur = 'texte aplati avant l envoi, publication annulee';
+      return rapport;
+    }
+    rapport.publie = await publier();
+  }
 
   return rapport;
 }

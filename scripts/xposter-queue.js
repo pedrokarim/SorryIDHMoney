@@ -104,6 +104,7 @@ export async function schedule(entry) {
     programmation,
     texte: entry.texte || '',
     images: entry.images || [],
+    arreterAvantEnvoi: entry.arreterAvantEnvoi === true,
     alts: entry.alts || [],
     publier: entry.publier === true,
     etat: 'en attente',
@@ -408,6 +409,9 @@ async function executeInternal(post) {
       comptesAutorises: xposterComptes,
       // Heure voulue, transmise seulement quand c'est X qui doit programmer.
       programmerLe: post.programmation === 'x' ? post.quand : null,
+      // Point d'observation : s'arreter juste avant le clic qui envoie, pour
+      // pouvoir capturer l'etat reel du composeur. Jamais actif par defaut.
+      arreterAvantEnvoi: post.arreterAvantEnvoi === true,
     },
   });
 
