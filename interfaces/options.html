@@ -364,6 +364,82 @@
         </div>
       </div>
     </div>
+
+    <div class="settings-group" data-collapsed="true">
+      <div class="settings-group-header" data-toggle="browser-bridge">
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <span>Pont navigateur (lecture)</span>
+      </div>
+      <div class="settings-group-content">
+        <div class="setting-item">
+          <span class="setting-label">Activer le module</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="enable-browser-bridge" name="enable-browser-bridge">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">État</span>
+          <span class="setting-label" id="browser-bridge-status" style="font-size:12px;opacity:.7"></span>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Port du pont local</span>
+          <input type="number" id="browser-bridge-port" name="browser-bridge-port" min="1024" max="65535" style="width:110px">
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Jeton</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="browser-bridge-token" name="browser-bridge-token" placeholder="obligatoire"
+                   readonly spellcheck="false"
+                   style="width:230px;font-family:Consolas,Menlo,monospace;font-size:12px">
+            <button type="button" class="btn btn-secondary" id="browser-bridge-generate" title="Générer un nouveau jeton">Générer</button>
+            <button type="button" class="btn btn-primary" id="browser-bridge-copy" title="Copier dans le presse-papiers">Copier</button>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label">Pastille d'historique sur les pages lues</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="browser-bridge-show-widget" name="browser-bridge-show-widget">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <!-- Deux lectures plus indiscrètes, chacune derrière sa case : elles
+             exposent les cookies et jetons de session. -->
+        <div class="setting-item">
+          <span class="setting-label" title="Requêtes complètes, console et capture de page entière. Chrome affiche un bandeau pendant l'opération.">Autoriser le débogueur (réseau complet, console, page entière)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="browser-bridge-allow-debugger" name="browser-bridge-allow-debugger">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label" title="localStorage, sessionStorage et cookies lisibles par la page.">Autoriser la lecture du stockage (cookies, localStorage)</span>
+          <label class="toggle-switch">
+            <input type="checkbox" id="browser-bridge-allow-storage" name="browser-bridge-allow-storage">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Les sites que le pont ne doit jamais ouvrir, lire ni lister. -->
+        <div class="setting-item" style="align-items:flex-start;flex-direction:column;gap:8px">
+          <span class="setting-label">Sites bannis</span>
+          <div id="browser-bridge-blocked" style="display:flex;flex-direction:column;gap:3px;width:100%"></div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="browser-bridge-blocked-input" placeholder="exemple.fr"
+                   spellcheck="false" style="width:190px;font-size:12px">
+            <button type="button" class="btn btn-secondary" id="browser-bridge-blocked-add">Ajouter</button>
+          </div>
+          <span id="browser-bridge-blocked-note" style="font-size:11px;opacity:.7"></span>
+        </div>
+
+        <div class="setting-item">
+          <span class="setting-label" style="font-size:12px;opacity:.7">
+            Lance le pont avec&nbsp;: <code id="browser-bridge-command" style="user-select:all"></code>
+          </span>
+        </div>
+      </div>
+    </div>
 </div>
 
   <script src="options.js"></script>

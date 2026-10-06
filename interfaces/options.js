@@ -126,8 +126,25 @@ document.addEventListener('DOMContentLoaded', function () {
         xposterPort: 8787,
         xposterToken: '',
         xposterModeProgrammation: 'extension',
-        xposterComptes: []
+        xposterComptes: [],
+        enableBrowserBridge: false,
+        browserBridgePort: 8788,
+        browserBridgeToken: '',
+        browserBridgeBlockedSites: [],
+        browserBridgeShowWidget: true,
+        browserBridgeAllowDebugger: false,
+        browserBridgeAllowStorage: false
     }, function (items) {
+        document.getElementById('browser-bridge-show-widget').checked = items.browserBridgeShowWidget;
+        document.getElementById('browser-bridge-allow-debugger').checked = items.browserBridgeAllowDebugger;
+        document.getElementById('browser-bridge-allow-storage').checked = items.browserBridgeAllowStorage;
+        document.getElementById('enable-browser-bridge').checked = items.enableBrowserBridge;
+        document.getElementById('browser-bridge-port').value = items.browserBridgePort;
+        document.getElementById('browser-bridge-token').value = items.browserBridgeToken;
+        blockedSites = items.browserBridgeBlockedSites || [];
+        renderBlockedSites();
+        showBridgeCommand(items.browserBridgeToken, items.browserBridgePort);
+        refreshBridgeStatus();
         document.getElementById('xposter-mode-programmation').value = items.xposterModeProgrammation;
         comptes = items.xposterComptes || [];
         dessinerComptes();
@@ -510,4 +527,157 @@ document.getElementById('xposter-compte-detecter').addEventListener('click', asy
 
 document.getElementById('xposter-mode-programmation').addEventListener('change', function (e) {
     chrome.storage.sync.set({ xposterModeProgrammation: e.target.value });
+});
+
+
+/* ── Pont navigateur ───────────────────────────────────────────────────────
+ *
+ * Même porte d'entrée que la publication X : une case, un port, un jeton.
+ * S'y ajoute la liste des sites bannis, que le pont n'ouvre, ne lit et ne
+ * liste jamais – c'est l'extension qui l'applique, pas l'outil qui demande.
+ */
+let blockedSites = [];
+
+/** Ramène une saisie libre (« https://www.Exemple.fr/page ») à un nom d'hôte. */
+function normalizeSite(entry) {
+    const raw = String(entry || '').trim().toLowerCase();
+    if (!raw) return '';
+    try {
+        return new URL(raw.includes('://') ? raw : 'https://' + raw).hostname.replace(/^www\./, '');
+    } catch {
+        return '';
+    }
+}
+
+function showBridgeCommand(token, port) {
+    document.getElementById('browser-bridge-command').textContent = token
+        ? `node tools/browser-server.js --token ${token} --port ${port}`
+        : '– génère un jeton pour obtenir la commande';
+}
+
+/**
+ * « Connecté » se déduit de la date du dernier échange réussi : un booléen
+ * resterait à vrai si le serveur s'arrêtait sans prévenir. Une sonde dure au
+ * plus vingt secondes, d'où le seuil.
+ */
+function refreshBridgeStatus() {
+    chrome.storage.local.get({ browserBridgeLastContact: 0 }, function (local) {
+        const el = document.getElementById('browser-bridge-status');
+        const contact = local.browserBridgeLastContact;
+        if (!document.getElementById('enable-browser-bridge').checked) el.textContent = 'coupé';
+        else if (Date.now() - contact < 45000) el.textContent = 'pont connecté';
+        else if (contact) el.textContent = 'pont absent · dernier échange ' + new Date(contact).toLocaleString('fr-FR');
+        else el.textContent = 'pont absent · serveur jamais vu';
+    });
+}
+
+chrome.storage.onChanged.addListener(function (changes, zone) {
+    if (zone === 'local' && 'browserBridgeLastContact' in changes) refreshBridgeStatus();
+});
+setInterval(refreshBridgeStatus, 15000);
+
+function renderBlockedSites() {
+    const list = document.getElementById('browser-bridge-blocked');
+    const note = document.getElementById('browser-bridge-blocked-note');
+    list.innerHTML = '';
+
+    blockedSites.forEach(function (site, index) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:12px';
+
+        const label = document.createElement('span');
+        label.style.cssText = 'flex:1;font-family:Consolas,Menlo,monospace';
+        // textContent : ces valeurs viennent d'une saisie libre.
+        label.textContent = site;
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.title = 'Retirer ' + site;
+        remove.setAttribute('aria-label', 'Retirer ' + site);
+        remove.style.cssText = 'background:none;border:0;padding:2px;cursor:pointer;color:inherit;opacity:.6;display:flex';
+        remove.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        remove.addEventListener('click', function () {
+            blockedSites.splice(index, 1);
+            saveBlockedSites();
+        });
+
+        row.appendChild(label);
+        row.appendChild(remove);
+        list.appendChild(row);
+    });
+
+    note.textContent = blockedSites.length
+        ? blockedSites.length + ' site(s) banni(s), sous-domaines compris.'
+        : 'Liste vide : le pont peut lire tous les sites.';
+}
+
+function saveBlockedSites() {
+    chrome.storage.sync.set({ browserBridgeBlockedSites: blockedSites });
+    renderBlockedSites();
+}
+
+const blockedInput = document.getElementById('browser-bridge-blocked-input');
+
+document.getElementById('browser-bridge-blocked-add').addEventListener('click', function () {
+    const site = normalizeSite(blockedInput.value);
+    if (!site) { confirmer(this, 'Invalide'); return; }
+    if (!blockedSites.includes(site)) {
+        blockedSites.push(site);
+        blockedSites.sort();
+        saveBlockedSites();
+    }
+    blockedInput.value = '';
+});
+
+blockedInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('browser-bridge-blocked-add').click(); }
+});
+
+document.getElementById('enable-browser-bridge').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ enableBrowserBridge: e.target.checked });
+    refreshBridgeStatus();
+});
+
+// Cases simples du pont : identifiant de la case → clé de réglage.
+for (const [id, key] of [
+    ['browser-bridge-show-widget', 'browserBridgeShowWidget'],
+    ['browser-bridge-allow-debugger', 'browserBridgeAllowDebugger'],
+    ['browser-bridge-allow-storage', 'browserBridgeAllowStorage'],
+]) {
+    document.getElementById(id).addEventListener('change', function (e) {
+        chrome.storage.sync.set({ [key]: e.target.checked });
+    });
+}
+
+document.getElementById('browser-bridge-generate').addEventListener('click', function () {
+    const token = genererJeton();
+    document.getElementById('browser-bridge-token').value = token;
+    chrome.storage.sync.set({ browserBridgeToken: token });
+    showBridgeCommand(token, document.getElementById('browser-bridge-port').value);
+    confirmer(this, 'Généré');
+});
+
+document.getElementById('browser-bridge-copy').addEventListener('click', async function () {
+    const field = document.getElementById('browser-bridge-token');
+    if (!field.value) { confirmer(this, 'Vide'); return; }
+    try {
+        await navigator.clipboard.writeText(field.value);
+        confirmer(this, 'Copié');
+    } catch {
+        // Presse-papiers refusé : on sélectionne, l'utilisateur fait Ctrl+C.
+        field.select();
+        confirmer(this, 'Ctrl+C');
+    }
+});
+
+document.getElementById('browser-bridge-port').addEventListener('change', function (e) {
+    const port = parseInt(e.target.value, 10);
+    // Un port hors plage couperait le pont sans rien dire : on refuse et on
+    // remet la valeur précédente sous les yeux.
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+        chrome.storage.sync.get({ browserBridgePort: 8788 }, (i) => { e.target.value = i.browserBridgePort; });
+        return;
+    }
+    chrome.storage.sync.set({ browserBridgePort: port });
+    showBridgeCommand(document.getElementById('browser-bridge-token').value, port);
 });

@@ -27,6 +27,7 @@
   - [Twitch](#twitch)
   - [Bypass vérification d’âge](#bypass-vérification-dâge)
   - [Publication X](#publication-x)
+  - [Pont navigateur](#pont-navigateur)
   - [Confort général](#confort-général)
 - [Interfaces](#interfaces)
 - [Configuration](#configuration)
@@ -208,6 +209,77 @@ part même si l’outil qui l’a déposée est éteint.
 
 </details>
 
+### Pont navigateur
+
+Laisse un outil local – une IA, un script – **lire le web à travers ce navigateur** quand une
+requête directe se fait refouler (pas de session, pas de JavaScript, empreinte de robot).
+**Lecture seule**, et **coupé par défaut** : il faut cocher la case *et* générer un jeton.
+
+```bash
+# Une seule fois : générer un jeton dans les options (Pont navigateur), puis
+node tools/browser-server.js --token MONJETON
+
+# Ensuite, sans argument – le CLI retrouve le jeton et relance le serveur au besoin
+node tools/browser-cli.js read --url https://exemple.fr/article
+node tools/browser-cli.js read --url https://exemple.fr --selector "main" --format text
+node tools/browser-cli.js query --url https://exemple.fr --selector "h2 a" --limit 20
+node tools/browser-cli.js screenshot --url https://exemple.fr --selector ".prix" --out prix.png
+node tools/browser-cli.js network --tab 123 --filter /api/
+node tools/browser-cli.js fetch --url https://exemple.fr/api/items.json
+node tools/browser-cli.js tabs
+
+# Lectures plus poussées
+node tools/browser-cli.js read --url https://exemple.fr --scroll --frames
+node tools/browser-cli.js screenshot --url https://exemple.fr --full --out page.png
+node tools/browser-cli.js inspect --url https://exemple.fr --filter /api/ --bodies --console
+node tools/browser-cli.js storage --tab 123
+```
+
+| Action | Ce qu’elle rend |
+|---|---|
+| `read` | Le contenu de la page ou d’un élément, en Markdown (défaut), texte ou HTML. `--scroll` fait défiler avant de lire, `--frames` lit aussi les iframes |
+| `query` | Les éléments qui correspondent à un sélecteur CSS : texte, attributs, position |
+| `screenshot` | Une capture PNG de la partie visible, d’un seul élément, ou de la page entière (`--full` 🔧) |
+| `network` | Les requêtes faites par la page : adresse, type, statut, poids |
+| `inspect` 🔧 | Les requêtes complètes (méthode, corps envoyé, en-têtes et corps reçus sur demande) et la console |
+| `storage` 🗝️ | `localStorage`, `sessionStorage` et cookies lisibles par la page |
+| `fetch` | Le corps d’une adresse (GET), avec la session du navigateur |
+| `tabs` · `open` · `close` | Lister les onglets, en ouvrir un, refermer un onglet ouvert par le pont |
+
+Une lecture vise `--url` (ouvre en arrière-plan, lit, referme), `--tab ID` (un onglet déjà
+ouvert) ou, sans rien, l’onglet actif.
+
+🔧 demande la case **Autoriser le débogueur** : Chrome affiche un bandeau pendant l’opération,
+et certains sites anti-robots le détectent. 🗝️ demande la case **Autoriser la lecture du
+stockage**. Les deux sont décochées par défaut, parce qu’elles exposent cookies et jetons de
+session.
+
+**Suivre ce qui se passe :**
+
+- Une **pastille** se pose sur chaque onglet lu qui reste ouvert. Elle se déplace à la souris,
+  se souvient de sa place, et un clic déroule ce qui a été relevé sur ce site. Les lectures
+  et les captures l’ignorent. Désactivable dans les options.
+- L’écran **Pont navigateur** (depuis la popup) tient le journal complet : action, page,
+  résultat, durée, vignette des captures, avec filtre, recherche et pagination.
+- La popup affiche l’état du pont et les dernières lectures.
+
+**Cinq gardes :**
+
+1. Module décoché par défaut
+2. Sans jeton renseigné, l’extension ne contacte même pas le serveur
+3. Liste blanche d’actions, **toutes en lecture** – ni clic, ni saisie, ni code arbitraire
+4. **Sites bannis** (options) : jamais ouverts, lus, photographiés ni listés, sous-domaines
+   et redirections compris. C’est l’extension qui applique la liste, pas l’outil qui demande
+5. Le débogueur et la lecture du stockage ont **chacun leur case, décochée**
+
+> ⚠️ Tant que le module est actif, tout programme de la machine qui connaît le jeton peut lire
+> les pages de ce navigateur **avec tes sessions ouvertes**. Bannis ce qui ne doit pas l’être
+> (banque, impôts, messagerie) et coupe le module quand il ne sert pas.
+
+**Limites connues :** sans le débogueur, `network` ne voit ni la méthode, ni les en-têtes, ni
+les corps (API Performance), et les captures s’arrêtent à l’écran visible ; `storage` ne voit
+pas les cookies `HttpOnly` ; `query`, `network` et `storage` ne lisent que le cadre principal.
+
 ### Confort général
 
 - Réautorise le défilement quand une page force `overflow: hidden` sur le `<body>`
@@ -225,6 +297,7 @@ part même si l’outil qui l’a déposée est éteint.
 | **Gestionnaire d’animes** | Liste des URL corrigées à la main et des animes ignorés |
 | **Statistiques Twitch** | Points collectés, détail par chaîne, historique |
 | **Publication X** | File d’attente, historique, état du pont local |
+| **Pont navigateur** | État du pont et journal de tout ce qui a été lu |
 | **À propos** | Version et informations |
 | **Testeur de toasts** | Outil de dev pour prévisualiser les notifications |
 
@@ -248,6 +321,9 @@ Forêt, Coucher de soleil, Cerisier, Minuit (avec aperçu en direct).
 **Bypass vérification d’âge** – toggle maître + un par site.
 
 **Publication X** – activation, autorisation de publier, port et jeton du pont local.
+
+**Pont navigateur** – activation, port, jeton, pastille sur les pages, autorisations du
+débogueur et du stockage, liste des sites bannis.
 
 ---
 
@@ -277,13 +353,15 @@ SorryIDHMoney/
 │   ├── *-content.js           # Un content script par plateforme
 │   ├── avb/                   # Bypass vérification d'âge (+ son propre README)
 │   │   └── spoofs/            # SDK des vérificateurs, remplacés via DNR
-│   └── xposter-*.js           # Module Publication X (content, file, pont, relecture)
+│   ├── xposter-*.js           # Module Publication X (content, file, pont, relecture)
+│   └── browser-*.js           # Module Pont navigateur (pont, relevés, pastille, journal, débogueur)
 ├── styles/                    # base.css (design tokens) + une feuille par interface
-└── tools/                     # Pont local Publication X (serveur + CLI, Node, sans deps)
+└── tools/                     # Ponts locaux : Publication X et Pont navigateur (Node, sans deps)
 ```
 
 **Permissions demandées :** `storage`, `unlimitedStorage`, `activeTab`, `scripting`,
-`declarativeNetRequest`, `alarms`, `tabs`, et `host_permissions: <all_urls>` – requis pour
+`declarativeNetRequest`, `alarms`, `tabs`, `downloads`, `debugger` (pont navigateur, utilisée
+seulement si sa case est cochée), et `host_permissions: <all_urls>` – requis pour
 que les règles DNR de redirection s’appliquent quel que soit le site qui intègre un
 vérificateur d’âge.
 

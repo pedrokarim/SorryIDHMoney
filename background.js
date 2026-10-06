@@ -39,7 +39,28 @@ import { onAlarm as onXPosterAlarm, cancel as cancelPost, captureComposer, rearm
 installIdlePoll();
 poll();
 
+/*
+ * Module « Pont navigateur » – coupé par défaut, en lecture seule.
+ *
+ * Même porte d'entrée que la publication X (case + jeton, serveur local sondé
+ * par l'extension), mais il ne fait que lire : contenu d'une page, éléments,
+ * captures, requêtes. Voir scripts/browser-bridge.js.
+ */
+import {
+  pump as pumpBrowserBridge,
+  installIdlePoll as installBrowserBridgePoll,
+  isIdleAlarm as isBrowserBridgeAlarm,
+  isSetting as isBrowserBridgeSetting,
+} from "./scripts/browser-bridge.js";
+
+installBrowserBridgePoll();
+pumpBrowserBridge();
+
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (isBrowserBridgeAlarm(alarm)) {
+    pumpBrowserBridge();
+    return;
+  }
   // L'alarme de veille rallume le worker et lui fait demander s'il y a du
   // travail ; les autres alarmes sont des publications programmees.
   if (isIdleAlarm(alarm)) {
@@ -54,6 +75,7 @@ chrome.storage.onChanged.addListener((changes, zone) => {
   if ("enableXPoster" in changes || "xposterPort" in changes || "xposterToken" in changes) {
     poll();
   }
+  if (isBrowserBridgeSetting(changes)) pumpBrowserBridge();
 });
 
 // Cache mémoire pour éviter de spammer l'API AniList (durée de vie = durée du service worker)
@@ -385,6 +407,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case "fbFileOuvrir":
       chrome.tabs.create({
         url: chrome.runtime.getURL("interfaces/fb-downloader.html"),
+      });
+      return false;
+    case "openBrowserBridge":
+      // Vient de la pastille posée sur une page : elle ne peut pas ouvrir
+      // elle-même une page de l extension.
+      chrome.tabs.create({
+        url: chrome.runtime.getURL("interfaces/browser-bridge.html"),
       });
       return false;
     case "openStatsPopup":

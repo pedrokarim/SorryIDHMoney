@@ -1,3 +1,46 @@
+/* ── Pas de saut à l'ouverture ─────────────────────────────────────────────
+ *
+ * Les panneaux « Publication X » et « Pont navigateur » dépendent de
+ * `chrome.storage`, qui ne répond qu'après le premier affichage : la popup
+ * s'ouvrait courte, puis s'allongeait d'un coup et tout descendait.
+ *
+ * On garde donc dans `localStorage` – synchrone, lui – le dernier rendu de
+ * chaque bloc, et on le repose ici, avant que le navigateur ne dessine quoi
+ * que ce soit. Les vraies valeurs arrivent ensuite et remplacent l'instantané,
+ * presque toujours à l'identique.
+ */
+const SNAPSHOT_IDS = ['xposter-panneau', 'nav-xposter', 'browser-bridge-panel', 'nav-browser-bridge'];
+const SNAPSHOT_PREFIX = 'popupSnapshot:';
+
+function saveSnapshot(id) {
+    const node = document.getElementById(id);
+    if (!node) return;
+    try {
+        localStorage.setItem(SNAPSHOT_PREFIX + id, JSON.stringify({
+            display: node.style.display,
+            html: node.innerHTML,
+        }));
+    } catch {
+        // Stockage plein ou refusé : on retombe sur l'ancien comportement.
+    }
+}
+
+(function restoreSnapshots() {
+    for (const id of SNAPSHOT_IDS) {
+        const node = document.getElementById(id);
+        if (!node) continue;
+        try {
+            const snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_PREFIX + id));
+            if (!snapshot) continue;
+            node.style.display = snapshot.display;
+            // Ce HTML vient de cette même page, à sa précédente ouverture.
+            node.innerHTML = snapshot.html;
+        } catch {
+            // Instantané illisible : on l'ignore.
+        }
+    }
+})();
+
 document.addEventListener('DOMContentLoaded', function() {
     const manifest = chrome.runtime.getManifest();
     document.getElementById('extension-name').textContent = manifest.name;
@@ -97,9 +140,6 @@ function escapeHtml(s) {
   const DELAI_PERTE = 150000; // 2 tours de sonde + marge
 
   const panneau = document.getElementById('xposter-panneau');
-  const badge = document.getElementById('xposter-badge');
-  const resume = document.getElementById('xposter-resume');
-  const historique = document.getElementById('xposter-historique');
   if (!panneau) return;
 
   const ETATS = {
@@ -118,6 +158,19 @@ function escapeHtml(s) {
   };
 
   function rendre(cfg, local) {
+    dessiner(cfg, local);
+    // L etat rendu sert de point de depart a la prochaine ouverture.
+    saveSnapshot('xposter-panneau');
+    saveSnapshot('nav-xposter');
+  }
+
+  function dessiner(cfg, local) {
+    // Relus a chaque rendu : l instantane repose a l ouverture remplace le
+    // contenu du panneau, donc les noeuds d avant n existent plus.
+    const badge = document.getElementById('xposter-badge');
+    const resume = document.getElementById('xposter-resume');
+    const historique = document.getElementById('xposter-historique');
+
     // Le lien vers l ecran dedie suit le meme sort que le panneau : inutile
     // de proposer une page qui ne dira rien.
     const lien = document.getElementById('nav-xposter');
@@ -179,4 +232,76 @@ function escapeHtml(s) {
   const minuterie = setInterval(rafraichir, 3000);
   window.addEventListener('unload', () => clearInterval(minuterie));
   chrome.storage.onChanged.addListener(rafraichir);
+})();
+
+
+/* ── Pont navigateur : état du pont et dernières lectures ──────────────────
+ *
+ * Même logique que le panneau de publication : caché si le module est coupé,
+ * « connecté » déduit de la date du dernier échange. Une sonde dure au plus
+ * vingt secondes, d'où un seuil bien plus court que pour la publication X.
+ */
+(function browserBridgePanel() {
+  const LOST_AFTER_MS = 45000;
+  const LABELS = {
+    read: 'lecture', query: 'éléments', screenshot: 'capture', network: 'réseau',
+    inspect: 'inspection', storage: 'stockage', fetch: 'requête', open: 'ouverture',
+    close: 'fermeture', tabs: 'onglets',
+  };
+
+  const panel = document.getElementById('browser-bridge-panel');
+  if (!panel) return;
+
+  const formatTime = (ms) => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  function render(cfg, local) {
+    const link = document.getElementById('nav-browser-bridge');
+    link.style.display = cfg.enableBrowserBridge ? '' : 'none';
+    panel.style.display = cfg.enableBrowserBridge ? '' : 'none';
+    if (!cfg.enableBrowserBridge) return;
+
+    const badge = document.getElementById('browser-bridge-badge');
+    const summary = document.getElementById('browser-bridge-summary');
+    const recent = document.getElementById('browser-bridge-recent');
+
+    const contact = local.browserBridgeLastContact;
+    const alive = Date.now() - contact < LOST_AFTER_MS;
+    badge.className = 'status-badge ' + (alive ? 'ok' : 'gray');
+    badge.textContent = alive ? 'pont connecté' : 'pont absent';
+
+    const history = local.browserBridgeHistory;
+    summary.textContent = history.length
+      ? `${history.length} ordre(s) au journal · dernier à ${formatTime(history[0].at)}`
+      : "aucune lecture pour l'instant";
+
+    recent.replaceChildren();
+    for (const entry of history.slice(0, 4)) {
+      const li = document.createElement('li');
+      const state = document.createElement('span');
+      state.className = 'status-badge ' + (entry.ok ? 'ok' : 'err');
+      state.style.marginRight = '6px';
+      state.textContent = LABELS[entry.action] || entry.action;
+      const where = document.createElement('span');
+      where.style.cssText = 'opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      where.textContent = entry.host || '–';
+      li.title = entry.ok ? entry.summary : entry.error;
+      li.append(state, where);
+      recent.appendChild(li);
+    }
+  }
+
+  function refresh() {
+    chrome.storage.sync.get({ enableBrowserBridge: false }, (cfg) => {
+      chrome.storage.local.get({ browserBridgeLastContact: 0, browserBridgeHistory: [] }, (local) => {
+        render(cfg, local);
+        saveSnapshot('browser-bridge-panel');
+        saveSnapshot('nav-browser-bridge');
+      });
+    });
+  }
+
+  refresh();
+  const timer = setInterval(refresh, 3000);
+  window.addEventListener('unload', () => clearInterval(timer));
+  chrome.storage.onChanged.addListener(refresh);
 })();

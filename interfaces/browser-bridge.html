@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pont navigateur</title>
+    <link rel="stylesheet" href="../styles/twitch-stats.css">
+    <link rel="stylesheet" href="../styles/browser-bridge.css">
+</head>
+<body>
+    <div class="manager">
+        <div class="manager-header">
+            <a href="popup.html" class="back-btn" title="Retour">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            </a>
+            <h1>Pont navigateur</h1>
+        </div>
+
+        <!-- État du pont : la première chose à regarder quand rien ne répond. -->
+        <div class="bb-status">
+            <span class="bb-dot" id="bb-dot"></span>
+            <div class="bb-status-text">
+                <strong id="bb-status-title">…</strong>
+                <span id="bb-status-detail"></span>
+            </div>
+            <a class="bb-icon-btn" href="options.html" title="Réglages du pont" aria-label="Réglages du pont">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+            </a>
+        </div>
+
+        <div class="stats-summary">
+            <div class="stat-box">
+                <div class="stat-box-value" id="bb-n-total">0</div>
+                <div class="stat-box-label">Ordres</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-value" id="bb-n-sites">0</div>
+                <div class="stat-box-label">Sites lus</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-value" id="bb-n-shots">0</div>
+                <div class="stat-box-label">Captures</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-box-value" id="bb-n-failed">0</div>
+                <div class="stat-box-label">Échecs</div>
+            </div>
+        </div>
+
+        <div class="bb-toolbar">
+            <label class="bb-visually-hidden" for="bb-filter">Filtrer par action</label>
+            <select id="bb-filter">
+                <option value="">Toutes les actions</option>
+                <option value="read">Lecture</option>
+                <option value="query">Éléments</option>
+                <option value="screenshot">Capture</option>
+                <option value="network">Réseau</option>
+                <option value="inspect">Inspection</option>
+                <option value="storage">Stockage</option>
+                <option value="fetch">Requête</option>
+                <option value="failed">Échecs seulement</option>
+            </select>
+            <label class="bb-visually-hidden" for="bb-search">Chercher dans l'historique</label>
+            <input type="text" id="bb-search" placeholder="Chercher un site, une adresse, un sélecteur…" spellcheck="false">
+            <button type="button" class="bb-icon-btn" id="bb-clear" title="Vider l'historique" aria-label="Vider l'historique">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+            </button>
+        </div>
+
+        <div id="bb-list" class="bb-list"></div>
+
+        <div class="bb-pager" id="bb-pager" hidden>
+            <button type="button" class="bb-icon-btn" id="bb-prev" title="Page précédente" aria-label="Page précédente">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <span id="bb-page"></span>
+            <button type="button" class="bb-icon-btn" id="bb-next" title="Page suivante" aria-label="Page suivante">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </button>
+        </div>
+
+        <p class="bb-note">
+            Le pont ne fait que lire. Ce journal garde ce qui a été demandé et ce que ça a rapporté,
+            pas le contenu lui-même – sauf une vignette pour les captures.
+        </p>
+    </div>
+    <script src="browser-bridge.js"></script>
+</body>
+</html>

@@ -32,6 +32,16 @@
       <ul class="xcom-hooks" id="xposter-historique"></ul>
     </div>
 
+    <div class="xcom-status" id="browser-bridge-panel" style="display:none">
+      <div class="xcom-status-head">
+        <svg class="xcom-status-icon" viewBox="0 0 24 24" fill="none" stroke="#805ad5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18M6 17v-7M18 17v-7M3 8c4 6 14 6 18 0"/></svg>
+        <span class="xcom-status-title">Pont navigateur</span>
+        <span class="status-badge gray" id="browser-bridge-badge">…</span>
+      </div>
+      <div id="browser-bridge-summary" style="font-size:11px;opacity:.75;margin:6px 0 4px"></div>
+      <ul class="xcom-hooks" id="browser-bridge-recent"></ul>
+    </div>
+
     <div class="nav-list">
       <a href="twitch-stats.html" class="nav-item">
         <span class="icon icon-stats"></span>
@@ -41,6 +51,11 @@
       <a href="xposter.html" class="nav-item" id="nav-xposter" style="display:none">
         <img class="xcom-status-icon" src="../icons/platforms/x.png" alt="">
         <span>Publication X</span>
+        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </a>
+      <a href="browser-bridge.html" class="nav-item" id="nav-browser-bridge" style="display:none">
+        <svg class="xcom-status-icon" viewBox="0 0 24 24" fill="none" stroke="#805ad5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18M6 17v-7M18 17v-7M3 8c4 6 14 6 18 0"/></svg>
+        <span>Pont navigateur</span>
         <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </a>
       <a href="anime-manager.html" class="nav-item">

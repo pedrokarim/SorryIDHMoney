@@ -197,6 +197,103 @@ l'interface dans un onglet déjà connecté. C'est contraire aux règles
 d'automatisation de X — le mode « préparer », qui laisse le clic final à
 l'humain, est celui qui reste dans les clous.
 
+## Module « Pont navigateur »
+
+Laisse un outil local lire le web à travers le navigateur : contenu d'une page,
+éléments ciblés, captures, requêtes. **Lecture seule, coupé par défaut.**
+
+### S'en servir (pour un agent)
+
+Quand une requête directe (WebFetch, curl) est refusée ou rend une page vide :
+
+```
+node tools/browser-cli.js read --url <adresse>
+```
+
+Le CLI lit le jeton dans `~/.sorryidhmoney/browser-bridge.json` et démarre le
+serveur s'il ne tourne pas. Le contenu sort en Markdown sur la sortie standard,
+le résumé (titre, longueur, `truncated`) sur la sortie d'erreur. L'en-tête de
+`tools/browser-cli.js` liste toutes les actions et options. Un « site banni »
+est un refus définitif : ne pas chercher à le contourner par un autre chemin.
+
+### Pièces
+
+- `scripts/browser-bridge.js` – la sonde, la liste blanche d'actions, les
+  onglets, les captures et le contrôle des sites bannis.
+- `scripts/browser-page.js` – les relevés injectés dans la page (`readPage`,
+  `queryElements`, `listResources`, `locateElement`, `scrollThrough`,
+  `readStorage`). Chaque fonction est sérialisée : elle ne peut rien utiliser
+  qui vive hors de son propre corps.
+- `scripts/browser-widget.js` – la pastille posée sur la page (Shadow DOM,
+  déplaçable, historique du site au clic). Injectée elle aussi.
+- `scripts/browser-history.js` – le journal (`chrome.storage.local`, clé
+  `browserBridgeHistory`, 300 lignes au plus) et les vignettes de capture.
+- `scripts/browser-debugger.js` – ce que seul `chrome.debugger` sait lire :
+  requêtes complètes, console, capture de page entière.
+- `interfaces/browser-bridge.html` + `.js` – l'écran du journal.
+- `tools/browser-server.js` – le relais local, `127.0.0.1` uniquement, jeton
+  obligatoire. `POST /run` dépose un ordre et retient la requête jusqu'au
+  résultat.
+- `tools/browser-cli.js` – la ligne de commande.
+
+Une seule permission ajoutée au manifeste : `debugger`. Elle ne sert que si
+la case « Autoriser le débogueur » est cochée ; le reste (`tabs`,
+`scripting`, `alarms`, `storage`, `<all_urls>`) y était déjà.
+
+### Sonde longue, et pas une sonde à la minute
+
+Le pont de publication X sonde une fois par minute, ce qui ne gêne pas pour
+programmer un post. Pour lire une page, c'est trop. Ici le serveur retient la
+sonde jusqu'à vingt secondes, ou jusqu'au premier ordre : tant qu'il tourne,
+un ordre part dans la seconde. Chaque tour appelle `chrome.storage`, ce qui
+repousse l'arrêt du worker. Serveur éteint, la boucle s'arrête et une alarme
+retente toutes les trente secondes. Le CLI lance donc le serveur avec
+`--idle 15` : il s'éteint seul, et le worker se rendort.
+
+### Ce qui ne doit pas bouger
+
+- **Aucune action qui modifie** : pas de clic, pas de saisie, pas d'exécution
+  de code reçu. `fetch` reste en GET. La modification, c'est le module
+  Publication X, et il a ses propres gardes.
+- **Les sites bannis se contrôlent dans l'extension**, avant d'ouvrir *et*
+  après chargement (une redirection peut y mener), et `tabs` ne les liste pas.
+- `close` ne referme que les onglets ouverts par le pont
+  (`chrome.storage.session`, clé `browserBridgeTabs`).
+- **Le débogueur et le stockage restent derrière leur case** (`inspect`,
+  `screenshot --full`, `storage`) : ils exposent cookies et jetons. Le
+  débogueur s'attache le temps d'un ordre, n'envoie aucune commande qui
+  agisse sur la page, et se détache toujours, même en cas d'échec.
+- **La pastille ne fait pas partie de la page** : tout nouveau relevé doit
+  ignorer `#sorryidhmoney-bridge-widget`, et une capture la masque d'abord.
+- Le journal ne garde pas le contenu relevé, seulement son poids – sauf une
+  vignette pour les captures.
+
+### Texte posé par CSS
+
+Des sites affichent leurs chiffres par `::before { content: attr(data-x) }`
+pour qu'ils n'existent dans aucun nœud de texte (vu sur streamscharts.com).
+`readPage` en Markdown lit donc aussi `::before` et `::after`. Le format
+`text` s'en tient à `innerText` et ne les voit pas.
+
+### Popup : pas de saut à l'ouverture
+
+Les panneaux qui dépendent de `chrome.storage` arrivaient après le premier
+affichage et faisaient descendre toute la popup. Leur dernier rendu est gardé
+dans `localStorage` (synchrone) et reposé avant le premier dessin
+(`restoreSnapshots` dans `interfaces/popup.js`). Tout panneau ajouté à la
+popup qui dépend d'une lecture asynchrone doit rejoindre `SNAPSHOT_IDS`.
+
+### Protocole en anglais
+
+Contrairement au pont XPoster, dont les noms français sont figés par
+l'existant, tout est en anglais ici : routes (`/commands`, `/results`, `/run`,
+`/status`), champs (`action`, `payload`, `result`, `error`) et clés de
+stockage (`enableBrowserBridge`, `browserBridgePort`, `browserBridgeToken`,
+`browserBridgeBlockedSites`, `browserBridgeShowWidget`,
+`browserBridgeAllowDebugger`, `browserBridgeAllowStorage`,
+`browserBridgeLastContact`, `browserBridgeHistory`,
+`browserBridgeWidgetPosition`).
+
 ## Module « Téléchargement Facebook »
 
 Repère les vidéos sur `facebook.com` et propose deux sorties selon ce que la
