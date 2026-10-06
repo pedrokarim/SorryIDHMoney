@@ -145,7 +145,8 @@ function buildPayload() {
 
   const response = await call('/run', {
     method: 'POST',
-    body: JSON.stringify({ action, payload, timeout: Number(flags.timeout) || 90 }),
+    // Assez long pour couvrir une vérification anti-robot validée à la main.
+    body: JSON.stringify({ action, payload, timeout: Number(flags.timeout) || 150 }),
   });
   const answer = await response.json();
 

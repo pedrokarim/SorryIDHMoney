@@ -158,17 +158,23 @@ async function waitForSelector(tabId, selector, timeoutMs) {
 }
 
 /** Délai laissé à une vérification anti-robot pour se valider seule. */
-const CHALLENGE_TIMEOUT_MS = 25000;
+const CHALLENGE_SILENT_MS = 8000;
+/** Délai laissé ensuite à l'utilisateur pour la valider à la main. */
+const CHALLENGE_HUMAN_MS = 90000;
 
 /**
  * Attend qu'une page de vérification anti-robot laisse place au site.
  *
- * On ne fait qu'attendre : c'est le navigateur de l'utilisateur qui passe la
- * vérification, comme il la passerait s'il ouvrait l'onglet lui-même. Si elle
- * réclame un geste (case à cocher, casse-tête), on le dit et on s'arrête.
+ * Le pont ne résout rien : c'est le navigateur de l'utilisateur qui passe la
+ * vérification. La plupart se valident seules en quelques secondes. Si
+ * celle-ci réclame un geste (case à cocher, casse-tête), on amène l'onglet
+ * sous les yeux de l'utilisateur et on lui laisse le temps de cliquer ; la
+ * lecture reprend d'elle-même dès que le site apparaît.
  */
 async function waitForChallenge(tabId) {
-  const deadline = Date.now() + CHALLENGE_TIMEOUT_MS;
+  const started = Date.now();
+  let shown = false;
+
   for (;;) {
     let challenged;
     try {
@@ -178,11 +184,27 @@ async function waitForChallenge(tabId) {
       challenged = true;
     }
     if (!challenged) return;
-    if (Date.now() > deadline) {
-      throw new Error(
-        'page de vérification anti-robot toujours affichée après '
-        + `${CHALLENGE_TIMEOUT_MS / 1000} s : ouvre l'adresse dans le navigateur, valide-la, puis relance`,
+
+    const waited = Date.now() - started;
+
+    if (!shown && waited > CHALLENGE_SILENT_MS) {
+      shown = true;
+      try {
+        const tab = await chrome.tabs.update(tabId, { active: true });
+        await chrome.windows.update(tab.windowId, { focused: true });
+      } catch {
+        // Fenêtre fermée entre-temps : la boucle finira sur le délai.
+      }
+    }
+
+    if (waited > CHALLENGE_SILENT_MS + CHALLENGE_HUMAN_MS) {
+      const error = new Error(
+        `vérification anti-robot non validée : l'onglet ${tabId} reste ouvert, `
+        + `valide-la puis relance avec --tab ${tabId}`,
       );
+      // L'onglet doit survivre à l'échec, sinon il n'y a plus rien à valider.
+      error.keepTab = true;
+      throw error;
     }
     await sleep(700);
   }
@@ -212,7 +234,7 @@ async function openTab(payload) {
     await sleep(payload.settle ?? 800);
     return chrome.tabs.get(tab.id);
   } catch (err) {
-    await closeOwnedTab(tab.id);
+    if (!err.keepTab) await closeOwnedTab(tab.id);
     throw err;
   }
 }
