@@ -52,13 +52,31 @@ export async function captureFullPage(tabId) {
     // Au-delà, Chrome rend une image vide ou refuse : on coupe et on le dit.
     const MAX_HEIGHT = 16000;
     const height = Math.min(Math.ceil(cssContentSize.height), MAX_HEIGHT);
+    const width = Math.ceil(cssContentSize.width);
 
-    const { data } = await send(tabId, 'Page.captureScreenshot', {
-      format: 'png',
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width: Math.ceil(cssContentSize.width), height, scale: 1 },
+    /*
+     * On agrandit la fenêtre d'affichage à la taille de la page le temps du
+     * cliché, puis on la rend.
+     *
+     * Demander simplement une capture « au-delà de l'écran » ne suffit pas
+     * dans une fenêtre visible : Chrome ne dessine que l'écran courant, et
+     * l'image obtenue répétait le premier écran cinq fois de suite, à la bonne
+     * hauteur – fausse sans en avoir l'air.
+     */
+    await send(tabId, 'Emulation.setDeviceMetricsOverride', {
+      width, height, deviceScaleFactor: 0, mobile: false,
     });
-    return { dataUrl: `data:image/png;base64,${data}`, clipped: cssContentSize.height > MAX_HEIGHT };
+    try {
+      // Le temps que la page se redispose et se redessine à cette taille.
+      await new Promise((r) => setTimeout(r, 600));
+      const { data } = await send(tabId, 'Page.captureScreenshot', {
+        format: 'png',
+        clip: { x: 0, y: 0, width, height, scale: 1 },
+      });
+      return { dataUrl: `data:image/png;base64,${data}`, clipped: cssContentSize.height > MAX_HEIGHT };
+    } finally {
+      await send(tabId, 'Emulation.clearDeviceMetricsOverride').catch(() => {});
+    }
   } finally {
     await detach(tabId);
   }
