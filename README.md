@@ -100,6 +100,10 @@ Sur **MyAnimeList**, **AniList** et **Nautiljon**, un bouton permet de sauter d�
 l’autre pour la même œuvre (animes comme mangas), avec recherche automatique de la
 correspondance.
 
+Sur MyAnimeList, le bouton AniList apparaît aussi hors de la fiche : sur un sujet du
+forum (l’œuvre est lue dans le fil d’Ariane du haut de page) et sur la liste des
+discussions d’un titre.
+
 ### Mavanimes
 
 Le support le plus poussé, en plus des boutons :
