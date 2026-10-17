@@ -36,6 +36,8 @@ clone ou l'ajout d'un skill).
 - Un skill utile hors de ce dépôt déclare `metadata: scope: global` dans son
   en-tête (c'est le cas de `browser-bridge`) ; `node tools/sync-skills.js
   --global` le lie alors aussi dans `~/.claude/skills` et `~/.agents/skills`.
+  Il appelle les outils du dépôt par `SORRYIDHMONEY_HOME` (définie par ce même
+  `--global`) : jamais de chemin de la machine dans un fichier versionné.
 
 ## Ajout d'une nouvelle plateforme de streaming
 

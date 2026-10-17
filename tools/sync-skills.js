@@ -15,7 +15,8 @@
  *   node tools/sync-skills.js            liens du projet (.claude/skills)
  *   node tools/sync-skills.js --global   et aussi, dans ~/.claude/skills et
  *                                        ~/.agents/skills, nos skills qui déclarent
- *                                        `metadata.scope: global` (utilisables partout)
+ *                                        `metadata.scope: global` (utilisables partout),
+ *                                        et définit SORRYIDHMONEY_HOME (dossier du dépôt)
  *
  * Le script ne supprime jamais un dossier qui contient un vrai skill : s'il
  * trouve à la place d'un lien une copie différente de celle du dépôt, il le
@@ -25,6 +26,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE = path.join(ROOT, '.agents', 'skills');
@@ -133,6 +135,22 @@ for (const name of skills) {
 }
 
 for (const name of pruneDangling(PROJECT_CLAUDE)) console.log(`- lien mort retiré : .claude/skills/${name}`);
+
+/*
+ * Les skills globaux appellent les outils du dépôt par SORRYIDHMONEY_HOME :
+ * aucun chemin de la machine n'est écrit dans un fichier versionné.
+ */
+const currentHome = process.env.SORRYIDHMONEY_HOME;
+if (withGlobal && (!currentHome || path.resolve(currentHome) !== ROOT)) {
+  if (process.platform === 'win32') {
+    // setx l'enregistre pour le compte, sans droits administrateur. Il ne
+    // vaut que pour les terminaux et outils ouverts ensuite.
+    execFileSync('setx', ['SORRYIDHMONEY_HOME', ROOT], { stdio: 'ignore' });
+    console.log(`\nSORRYIDHMONEY_HOME = ${ROOT} (pour les prochains terminaux et sessions)`);
+  } else {
+    console.log(`\nÀ ajouter au profil du shell : export SORRYIDHMONEY_HOME="${ROOT}"`);
+  }
+}
 
 const missing = [...thirdParty].filter((name) => !skills.includes(name));
 if (missing.length) {

@@ -24,9 +24,16 @@ par principe.
 
 ## Commande
 
+La variable d'environnement `SORRYIDHMONEY_HOME` donne le dossier du dépôt
+SorryIDHMoney :
+
 ```
-node "C:\Users\karim\Desktop\programming-laboratory\SorryIDHMoney\tools\browser-cli.js" <action> [options]
+node "$SORRYIDHMONEY_HOME/tools/browser-cli.js" <action> [options]        # bash
+node "$env:SORRYIDHMONEY_HOME\tools\browser-cli.js" <action> [options]    # PowerShell
 ```
+
+Si elle est vide, ne devine pas le chemin : dis-le à l'utilisateur, qui la
+définit une fois depuis le dépôt avec `node tools/sync-skills.js --global`.
 
 Aucun jeton à fournir : le CLI le lit dans
 `~/.sorryidhmoney/browser-bridge.json` et démarre le serveur s'il ne tourne
