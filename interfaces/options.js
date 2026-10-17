@@ -132,8 +132,11 @@ document.addEventListener('DOMContentLoaded', function () {
         browserBridgeBlockedSites: [],
         browserBridgeShowWidget: true,
         browserBridgeAllowDebugger: false,
-        browserBridgeAllowStorage: false
+        browserBridgeAllowStorage: false,
+        developerMode: false
     }, function (items) {
+        document.getElementById('developer-mode').checked = items.developerMode;
+        reflectDeveloperMode(items.developerMode);
         document.getElementById('browser-bridge-show-widget').checked = items.browserBridgeShowWidget;
         document.getElementById('browser-bridge-allow-debugger').checked = items.browserBridgeAllowDebugger;
         document.getElementById('browser-bridge-allow-storage').checked = items.browserBridgeAllowStorage;
@@ -187,6 +190,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
         updateThemePreview(items.theme);
     });
+});
+
+// Mode développeur : montre ou cache les outils de test.
+function reflectDeveloperMode(enabled) {
+    document.getElementById('dev-tools-group').hidden = !enabled;
+}
+
+document.getElementById('developer-mode').addEventListener('change', function (e) {
+    chrome.storage.sync.set({ developerMode: e.target.checked });
+    reflectDeveloperMode(e.target.checked);
 });
 
 // ── Publication X ────────────────────────────────────────────────────────

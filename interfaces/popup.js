@@ -9,7 +9,7 @@
  * que ce soit. Les vraies valeurs arrivent ensuite et remplacent l'instantané,
  * presque toujours à l'identique.
  */
-const SNAPSHOT_IDS = ['xposter-panneau', 'nav-xposter', 'browser-bridge-panel', 'nav-browser-bridge'];
+const SNAPSHOT_IDS = ['xposter-panneau', 'nav-xposter', 'browser-bridge-panel', 'nav-browser-bridge', 'dev-section'];
 const SNAPSHOT_PREFIX = 'popupSnapshot:';
 
 function saveSnapshot(id) {
@@ -57,6 +57,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         window.close();
+    });
+
+    // Outils de test : visibles seulement en mode développeur.
+    chrome.storage.sync.get({ developerMode: false }, ({ developerMode }) => {
+        document.getElementById('dev-section').style.display = developerMode ? '' : 'none';
+        saveSnapshot('dev-section');
     });
 
     // Statut du bypass X — affiché uniquement si l'onglet actif est X/Twitter.
