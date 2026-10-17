@@ -20,6 +20,23 @@ Extension Chrome MV3 pour enrichir les sites d'anime avec des boutons MAL/AniLis
 - `styles/` — CSS : `base.css` porte tout le système de design, chaque page n'a qu'une petite feuille à elle
 - `icons/brand/` — le logo (symbole, icône, versions horizontales) ; `fonts/` — Bricolage Grotesque
 
+## Skills (Claude Code et Codex)
+
+Une seule copie de chaque skill, dans `.agents/skills/<nom>/SKILL.md` : Codex
+les lit là directement. Claude Code lit `.claude/skills/`, où
+`node tools/sync-skills.js` pose un lien vers chacun (à relancer après un
+clone ou l'ajout d'un skill).
+
+- **Nos skills sont versionnés** : `browser-bridge`, `fetch-logo`. Chacun est
+  autorisé nommément dans `.gitignore` (`!/.agents/skills/<nom>/`) : un nouveau
+  skill à nous doit y être ajouté, sinon il reste local.
+- **Les skills tiers ne le sont pas** : ils sont listés dans `skills-lock.json`
+  et s'installent en local avec `npx skills experimental_install`. Tout le
+  reste de `.agents/skills/` est ignoré.
+- Un skill utile hors de ce dépôt déclare `metadata: scope: global` dans son
+  en-tête (c'est le cas de `browser-bridge`) ; `node tools/sync-skills.js
+  --global` le lie alors aussi dans `~/.claude/skills` et `~/.agents/skills`.
+
 ## Ajout d'une nouvelle plateforme de streaming
 
 ### Processus complet (étapes dans l'ordre)

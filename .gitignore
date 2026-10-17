@@ -3,5 +3,12 @@ scripts/content.js
 manifest.json
 
 .references
+# Liens générés par tools/sync-skills.js et réglages locaux de Claude Code.
 /.claude
 .obsidian/
+
+# Skills : seuls les nôtres sont versionnés. Les skills tiers s'installent en
+# local depuis skills-lock.json (npx skills experimental_install).
+/.agents/skills/*
+!/.agents/skills/browser-bridge/
+!/.agents/skills/fetch-logo/

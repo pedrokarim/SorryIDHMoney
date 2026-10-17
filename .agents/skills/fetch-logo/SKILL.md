@@ -1,6 +1,13 @@
+---
+name: fetch-logo
+description: Récupère le logo ou le favicon d'un site web et l'enregistre dans icons/platforms/ pour la configuration de l'extension SorryIDHMoney. À utiliser quand on ajoute une plateforme ou qu'on a besoin de l'icône d'un site.
+---
+
+# Récupérer le logo d'un site
+
 Récupère le logo/favicon d'un site web pour l'utiliser dans la config de l'extension.
 
-**Argument** : $ARGUMENTS (URL du site, ex: https://www.crunchyroll.com)
+**Entrée** : l'URL du site (ex. https://www.crunchyroll.com), donnée en argument ou dans la demande.
 
 > **Priorité** : toujours le **vrai logo du site** (favicon / apple-touch-icon) — c'est le
 > logo authentique, avec ses vraies couleurs et son design. Simple Icons n'est qu'un
