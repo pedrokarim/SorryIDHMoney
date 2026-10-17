@@ -127,6 +127,31 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     return { type: null, id: null };
   }
 
+  /**
+   * Anime ou manga dont parle une page MyAnimeList qui n'est pas sa fiche
+   * (sujet du forum, liste des discussions d'un titre…).
+   *
+   * - `forum/?animeid=` / `?mangaid=` : l'identifiant est dans l'adresse ;
+   * - sujet du forum (`forum/?topicid=`) : l'adresse ne dit rien, mais le
+   *   fil d'Ariane du haut mène à la fiche (`/anime/60057/…`). On ne lit que
+   *   le fil d'Ariane : la page contient d'autres liens d'animes (barre
+   *   latérale, messages) qui n'ont rien à voir avec le sujet.
+   */
+  function extractMalMediaFromPage(urlObj) {
+    for (const type of ["anime", "manga"]) {
+      const id = urlObj.searchParams.get(`${type}id`);
+      if (/^\d+$/.test(id || "")) return { type, id };
+    }
+
+    const crumbs = document.querySelectorAll('.breadcrumb a[itemprop="item"]');
+    for (const link of crumbs) {
+      const match = link.href.match(/^https:\/\/myanimelist\.net\/(anime|manga)\/(\d+)(?:\/|$)/);
+      if (match) return { type: match[1], id: match[2] };
+    }
+
+    return { type: null, id: null };
+  }
+
   // async function getMediaInfoByTitle(title, type) {
   //   return new Promise((resolve) => {
   //     chrome.runtime.sendMessage({
@@ -167,15 +192,20 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     const { type, id } = extractAnimeIdFromUrl(currentUrl);
 
     switch (currentHostname) {
-      case "myanimelist.net":
-        if (["anime", "manga"].includes(type) && id && enableAnilist) {
-          getUrlAnilist(id, type.toUpperCase()).then((url) => {
+      case "myanimelist.net": {
+        // Fiche (/anime/123/…) d'abord, sinon ce que la page désigne.
+        const media = ["anime", "manga"].includes(type) && id
+          ? { type, id }
+          : extractMalMediaFromPage(currentUrl);
+        if (media.type && media.id && enableAnilist) {
+          getUrlAnilist(media.id, media.type.toUpperCase()).then((url) => {
             if (isStale() || !url) return;
             buttonAnilist = addCustomButton("anilist", url);
           });
         }
 
         break;
+      }
       case "anilist.co":
         if (["anime", "manga"].includes(type) && id && enableMal) {
           getUrlMal(id, type.toUpperCase()).then((url) => {
