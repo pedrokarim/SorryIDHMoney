@@ -120,7 +120,6 @@ document.addEventListener('DOMContentLoaded', function () {
         enableAvbAgego: true,
         enableAvbAgeverif: true,
         enableAvbVeriff: true,
-        enableFacebookDl: true,
         enableXPoster: false,
         xposterAutoriserPublication: false,
         xposterPort: 8787,
@@ -166,7 +165,6 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('enable-adn').checked = items.enableAdn;
         document.getElementById('enable-gumgum').checked = items.enableGumgum;
         document.getElementById('enable-twitch-rewards').checked = items.enableTwitchRewards;
-        document.getElementById('enable-facebook-dl').checked = items.enableFacebookDl;
         document.getElementById('enable-toasts').checked = items.enableToasts;
 
         document.getElementById('enable-yt-shorts-autoscroll').checked = items.enableYoutubeShortsAutoscroll;
@@ -330,11 +328,6 @@ for (const platform of ['voiranime', 'crunchyroll', 'adkami', 'adn', 'gumgum']) 
         chrome.storage.sync.set({ [key]: e.target.checked });
     });
 }
-
-// Téléchargement Facebook — pris en compte au prochain chargement de page
-document.getElementById('enable-facebook-dl').addEventListener('change', function (e) {
-    chrome.storage.sync.set({ enableFacebookDl: e.target.checked });
-});
 
 document.getElementById('enable-twitch-rewards').addEventListener('change', function (e) {
     chrome.storage.sync.set({ enableTwitchRewards: e.target.checked });
