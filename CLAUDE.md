@@ -17,7 +17,8 @@ Extension Chrome MV3 pour enrichir les sites d'anime avec des boutons MAL/AniLis
 - `icons/platforms/` — Logos des plateformes (PNG, SVG, WebP, ICO)
 - `scripts/` — Content scripts par plateforme + utilitaires
 - `interfaces/` — Pages HTML de l'extension (popup, options, etc.)
-- `styles/` — CSS (base.css avec design tokens, options.css, etc.)
+- `styles/` — CSS : `base.css` porte tout le système de design, chaque page n'a qu'une petite feuille à elle
+- `icons/brand/` — le logo (symbole, icône, versions horizontales) ; `fonts/` — Bricolage Grotesque
 
 ## Ajout d'une nouvelle plateforme de streaming
 
@@ -95,21 +96,21 @@ Ajouter `"run_at": "document_idle"` pour les SPA React.
 
 #### 5. Ajouter le toggle dans la config
 
-**`interfaces/options.html`** — ajouter dans le groupe "Plateformes de streaming" :
+**`interfaces/options.html`** — ajouter dans la section « Animes », sous « Plateformes de streaming » :
 ```html
-<div class="setting-item">
-  <span class="setting-label"><img src="../icons/platforms/{nom}.png" class="platform-icon" alt="">{Nom}</span>
-  <label class="toggle-switch">
-    <input type="checkbox" id="enable-{nom}" name="enable-{nom}">
-    <span class="slider"></span>
-  </label>
-</div>
+<label class="row">
+  <span class="row-icon"><img src="../icons/platforms/{nom}.png" alt=""></span>
+  <span class="row-text"><span class="row-label">{Nom}</span></span>
+  <span class="switch"><input type="checkbox" id="enable-{nom}"><span class="track"></span></span>
+</label>
 ```
 
-**`interfaces/options.js`** — 3 modifications :
-1. Ajouter `enable{Nom}: true` dans le `chrome.storage.sync.get` du `DOMContentLoaded`
-2. Ajouter `document.getElementById('enable-{nom}').checked = items.enable{Nom};` dans le callback
-3. Ajouter `'{nom}'` dans le tableau de la boucle `for (const platform of [...])`
+**`interfaces/options.js`** — 2 modifications :
+1. Ajouter `enable{Nom}: true` dans `DEFAULTS`
+2. Ajouter `'enable-{nom}': 'enable{Nom}'` dans `SIMPLE_SWITCHES`
+
+**`interfaces/popup.js`** — ajouter le script dans `PLATFORMS` (nom, clé, icône) : c'est ce
+qui fait apparaître « Sur cet onglet » et la correction de fiche dans la popup.
 
 ## Conventions
 
@@ -117,4 +118,41 @@ Ajouter `"run_at": "document_idle"` pour les SPA React.
 - `manifest.json` est gitignored — toujours mettre à jour `manifest.example.json` en parallèle
 - Les content scripts loguent avec le préfixe `[NomPlateforme]`
 - AniList est la source de vérité pour les données anime
-- Le bouton info (3ème, violet) occupe le même slot que le bouton "quitter édition" — il est caché en mode édition
+- Le bouton info (3ème, encre et or) occupe le même slot que le bouton "quitter édition" — il est caché en mode édition
+
+## Direction artistique
+
+Logo : le **« S sans barre »**, un $ dont on a arraché la barre (il n'en reste que deux
+encoches). L'idée de « Sorry, I Don't Have Money » tient dans ce qui manque. Fichiers dans
+`icons/brand/` ; `icon-small.svg` est la coupe 16–32 px (trait plus gras, encoches plus
+larges), utilisée pour `icon16.png` et `icon32.png`.
+
+| Rôle | Valeur |
+|---|---|
+| Encre (texte, surfaces sombres, tuile de l'icône) | `#17131F` |
+| Or (marque, bouton principal, interrupteur actif) | `#FFC233` |
+| Papier (fond clair) | `#F6F3EC` |
+| Titres et mot-symbole | Bricolage Grotesque (`fonts/`, OFL) |
+| Texte d'interface | Segoe UI Variable / police système |
+
+### Règles
+
+- **Tout passe par `styles/base.css`** : jetons de couleur, composants (`.app`, `.card`,
+  `.rows` / `.row`, `.switch`, `.btn`, `.badge`, `.stat`, `details.group`, `.pager`,
+  `.empty`). Une page n'ajoute que ce qui lui est propre.
+- **L'or ne sert jamais de couleur de texte sur fond clair** (contraste insuffisant) : on
+  prend `--accent-text`. Sur l'or, le texte est encre (`--on-gold`).
+- **Thème** : automatique, clair ou sombre (clé `theme`). `interfaces/theme.js` se charge
+  dans le `<head>` de chaque page, sans `defer`, pour éviter le flash ; il pose aussi
+  `.in-popup` sur `<html>` quand la page est dans la popup. Là, c'est `.app` qui défile
+  (`max-height: 600px`) : Chrome n'élargit pas la popup pour une barre de défilement.
+- **Icônes** : un seul jeu, dans `interfaces/ui.js` (`<i data-icon="nom">` dans le HTML,
+  `UI.icon('nom')` en JS). Pas de SVG recopié à la main dans les pages.
+- **Ce qui est posé sur les sites** (toasts, fiche info, boutons, pastilles) garde
+  toujours l'habillage encre et or, quel que soit le site : couleurs dans
+  `scripts/brand.js`. Les toasts vivent dans un Shadow DOM. Seuls les boutons MyAnimeList
+  et AniList gardent les couleurs de leur marque.
+- **Pas de barre ni de bordure colorée décorative** autour d'une carte ou d'une section.
+- Un compteur au-delà de 100 000 s'abrège (`UI.setStat`), la valeur exacte en infobulle.
+- **Mode développeur** (clé `developerMode`, coupé par défaut) : les outils de test
+  n'apparaissent que s'il est coché.

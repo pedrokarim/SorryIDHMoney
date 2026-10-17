@@ -105,53 +105,53 @@ export async function renderWidget(state) {
   };
 
   const STYLE = `
-    :host { color-scheme: light; }
-    * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+    :host { color-scheme: dark; }
+    * { box-sizing: border-box; font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; }
     .pill {
       position: absolute; left: 0; top: 0; width: ${SIZE}px; height: ${SIZE}px;
       display: flex; align-items: center; justify-content: center;
       border: 0; border-radius: 50%; padding: 0; margin: 0;
-      background: #805ad5; color: #fff; cursor: grab; touch-action: none;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, .28);
+      background: #17131f; color: #ffc233; cursor: grab; touch-action: none;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .32), 0 0 0 1px rgba(255, 255, 255, .08);
     }
     .pill:active { cursor: grabbing; }
-    .pill:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-    .pill.failed { background: #c53030; }
+    .pill:focus-visible { outline: 2px solid #ffc233; outline-offset: 2px; }
+    .pill.failed { background: #ff7a85; color: #17131f; }
     .pill.busy::after {
       content: ''; position: absolute; inset: 0; border-radius: 50%;
-      box-shadow: 0 0 0 0 rgba(128, 90, 213, .6); animation: pulse 1.2s ease-out infinite;
+      box-shadow: 0 0 0 0 rgba(255, 194, 51, .6); animation: pulse 1.2s ease-out infinite;
     }
-    @keyframes pulse { to { box-shadow: 0 0 0 14px rgba(128, 90, 213, 0); } }
+    @keyframes pulse { to { box-shadow: 0 0 0 14px rgba(255, 194, 51, 0); } }
     @media (prefers-reduced-motion: reduce) { .pill.busy::after { animation: none; } }
     .count {
       position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px;
-      border-radius: 999px; background: #fff; color: #553c9a;
+      border-radius: 999px; background: #ffc233; color: #17131f;
       font-size: 10px; font-weight: 700; line-height: 17px; text-align: center;
       box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
     }
     .panel {
       position: absolute; width: ${PANEL_WIDTH}px; max-width: calc(100vw - 16px);
-      background: #fff; color: #2d3748; border-radius: 10px;
-      box-shadow: 0 8px 28px rgba(0, 0, 0, .28); overflow: hidden; font-size: 12px; line-height: 1.35;
+      background: #1a1720; color: #f5f1e8; border-radius: 12px; border: 1px solid rgba(255, 255, 255, .09);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .38), 0 2px 6px rgba(0, 0, 0, .24); overflow: hidden; font-size: 12px; line-height: 1.35;
     }
-    .head { display: flex; align-items: center; gap: 6px; padding: 9px 8px 9px 12px; background: #f7f5fc; }
+    .head { display: flex; align-items: center; gap: 6px; padding: 9px 8px 9px 12px; background: #231f2b; }
     .title { flex: 1; min-width: 0; }
     .title strong { display: block; font-size: 12.5px; }
-    .title span { display: block; color: #718096; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .title span { display: block; color: #a9a2b4; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tool {
       display: flex; align-items: center; justify-content: center; width: 26px; height: 26px;
-      border: 0; border-radius: 6px; background: none; color: #4a5568; cursor: pointer; padding: 0;
+      border: 0; border-radius: 6px; background: none; color: #a9a2b4; cursor: pointer; padding: 0;
     }
-    .tool:hover { background: rgba(128, 90, 213, .14); color: #553c9a; }
-    .busy-line { padding: 7px 12px; color: #553c9a; font-weight: 600; }
+    .tool:hover { background: rgba(255, 194, 51, .14); color: #ffc233; }
+    .busy-line { padding: 7px 12px; color: #ffc233; font-weight: 600; }
     .list { max-height: 300px; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; }
     .row { display: flex; gap: 8px; padding: 5px 12px; align-items: baseline; }
-    .time { color: #a0aec0; font-size: 10.5px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
+    .time { color: #8c8597; font-size: 10.5px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
     .what { flex: 1; min-width: 0; }
     .label { font-weight: 600; }
-    .detail { color: #718096; overflow-wrap: anywhere; }
-    .error { color: #c53030; overflow-wrap: anywhere; }
-    .empty { padding: 14px 12px; color: #718096; }
+    .detail { color: #a9a2b4; overflow-wrap: anywhere; }
+    .error { color: #ff7a85; overflow-wrap: anywhere; }
+    .empty { padding: 14px 12px; color: #a9a2b4; }
   `;
 
   function draw() {

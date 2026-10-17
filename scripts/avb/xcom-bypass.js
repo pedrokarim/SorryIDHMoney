@@ -27,19 +27,19 @@
   const rootEl = document.documentElement;
 
   // Style de la pastille — cachee par defaut, revelee via .avb-xcom-show-dot,
-  // look aligne sur l'extension (blanc, arrondi, accent violet, ombre).
+  // look aligne sur l'extension (encre et or, arrondi, ombre).
   const style = document.createElement('style');
   style.textContent =
     '#agebypassx-indicator{position:fixed;top:16px;right:16px;z-index:2147483647;' +
     'display:none;align-items:center;gap:6px;padding:5px 9px 5px 7px;' +
-    'background:#fff;color:#333;border:1.5px solid #805ad5;border-radius:8px;' +
-    "box-shadow:0 3px 6px rgba(0,0,0,.16),0 3px 6px rgba(0,0,0,.23);" +
-    "font:600 11px/1 'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;cursor:default;user-select:none}" +
+    'background:#17131f;color:#f5f1e8;border:1px solid rgba(255,255,255,.12);border-radius:10px;' +
+    "box-shadow:0 4px 14px rgba(0,0,0,.32);" +
+    "font:600 11px/1 'Segoe UI Variable Text','Segoe UI',system-ui,sans-serif;cursor:default;user-select:none}" +
     'html.avb-xcom-show-dot #agebypassx-indicator{display:inline-flex}' +
     '#agebypassx-indicator .avb-dot{width:9px;height:9px;border-radius:50%;' +
-    'background:#4CAF50;box-shadow:0 0 6px #4CAF50}' +
-    '#agebypassx-indicator[data-state="err"]{border-color:#F44336}' +
-    '#agebypassx-indicator[data-state="err"] .avb-dot{background:#F44336;box-shadow:0 0 6px #F44336}';
+    'background:#4fd18b;box-shadow:0 0 6px #4fd18b}' +
+    '#agebypassx-indicator[data-state="err"]{border-color:#ff7a85}' +
+    '#agebypassx-indicator[data-state="err"] .avb-dot{background:#ff7a85;box-shadow:0 0 6px #ff7a85}';
   rootEl.appendChild(style);
 
   const dot = document.createElement('div');

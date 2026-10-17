@@ -304,8 +304,8 @@ if ([
         left: "5px",
         padding: "4px",
         borderRadius: "50%",
-        backgroundColor: "#805ad5",
-        color: "#fff",
+        backgroundColor: "#17131f",
+        color: "#ffc233",
         fontSize: "14px",
         fontWeight: "bold",
         textDecoration: "none",
@@ -396,11 +396,11 @@ function createGenericButton(iconHTML, styles) {
 
   // Ajouter l'effet de hover
   button.addEventListener('mouseenter', () => {
-    button.style.backgroundColor = '#805ad5'; // Couleur plus claire au hover
+    button.style.backgroundColor = '#2e2938'; // Couleur plus claire au hover
   });
 
   button.addEventListener('mouseleave', () => {
-    button.style.backgroundColor = '#6b46c1'; // Retour à la couleur normale
+    button.style.backgroundColor = '#17131f'; // Retour à la couleur normale
   });
 
   button.innerHTML = iconHTML;
@@ -417,7 +417,8 @@ function createButtonWithPosition(position) {
     position: 'fixed',
     top: '50%',
     transform: 'translateY(-50%)',
-    backgroundColor: '#6b46c1',
+    backgroundColor: '#17131f',
+    color: '#ffc233',
     // Ajout des styles pour le tooltip
     '::before': {
       content: `"${shortcutText}"`,
@@ -495,8 +496,8 @@ function addBackToListButton() {
     position: 'fixed',
     top: '63px',
     left: '20px',
-    backgroundColor: '#805ad5',
-    color: '#fff',
+    backgroundColor: '#17131f',
+    color: '#ffc233',
   });
 
   // Ajout du tooltip pour le raccourci

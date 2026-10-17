@@ -72,7 +72,7 @@ function ensureOverlayStyle() {
 .sidhm-shorts-ring circle { fill: none; stroke-width: 6; stroke-linecap: round; }
 .sidhm-shorts-ring .track { stroke: rgba(255,255,255,0.2); }
 .sidhm-shorts-ring .progress {
-    stroke: #6b46c1;
+    stroke: #ffc233;
     stroke-dasharray: var(--circ);
     stroke-dashoffset: 0;
     animation: sidhmProgress var(--dur) linear forwards;

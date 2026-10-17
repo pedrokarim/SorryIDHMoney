@@ -292,14 +292,17 @@ pas les cookies `HttpOnly` ; `query`, `network` et `storage` ne lisent que le ca
 
 | Page | Rôle |
 |---|---|
-| **Popup** | Point d’entrée : statut X, accès rapide aux pages, bascule du mode édition |
-| **Paramètres** | Tous les réglages, groupés et repliables |
-| **Gestionnaire d’animes** | Liste des URL corrigées à la main et des animes ignorés |
-| **Statistiques Twitch** | Points collectés, détail par chaîne, historique |
+| **Popup** | Point d’entrée : ce qu’on peut faire sur l’onglet ouvert (correction de fiche sur un site d’anime, statut X), état des modules actifs, outils |
+| **Paramètres** | Tous les réglages, groupés en sections repliables |
+| **Gestionnaire d’animes** | Fiches corrigées à la main et animes ignorés |
+| **Récompenses Twitch** | Points récupérés, classement par chaîne |
 | **Publication X** | File d’attente, historique, état du pont local |
 | **Pont navigateur** | État du pont et journal de tout ce qui a été lu |
-| **À propos** | Version et informations |
-| **Testeur de toasts** | Outil de dev pour prévisualiser les notifications |
+| **À propos** | Version, chiffres, permissions, réinitialisation |
+| **Testeur de toasts** | Outil de dev, visible seulement en mode développeur |
+
+Toutes les pages partagent le même système de design (`styles/base.css`) : encre et or,
+thème automatique, clair ou sombre, un seul jeu d’icônes (`interfaces/ui.js`).
 
 ---
 
@@ -307,23 +310,24 @@ pas les cookies `HttpOnly` ; `query`, `network` et `storage` ne lisent que le ca
 
 Accessible via la popup → **Paramètres**, ou par la page d’options de l’extension.
 
-**Général** – couleur de fond, censure, et **8 thèmes** : Clair, Sombre, Violet, Océan,
-Forêt, Coucher de soleil, Cerisier, Minuit (avec aperçu en direct).
+**Apparence** – thème (automatique, clair, sombre) et notifications sur les pages.
 
-**Boutons de switch** – MyAnimeList, AniList, désactivation des animations.
-
-**Plateformes de streaming** – un toggle par site.
+**Animes** – boutons MyAnimeList et AniList, animation, et un toggle par plateforme de
+streaming.
 
 **YouTube** – lecture fluide, auto-scroll des Shorts, replays et délai.
 
-**Fonctionnalités** – rewards Twitch, notifications toast.
+**Twitch** – récupération automatique des rewards.
 
-**Bypass vérification d’âge** – toggle maître + un par site.
+**Vérification d’âge** – toggle maître + un par site.
 
 **Publication X** – activation, autorisation de publier, port et jeton du pont local.
 
 **Pont navigateur** – activation, port, jeton, pastille sur les pages, autorisations du
 débogueur et du stockage, liste des sites bannis.
+
+**Avancé** – mode développeur : fait apparaître les outils de test (testeur de toasts) dans
+la popup et dans les paramètres.
 
 ---
 
@@ -343,7 +347,9 @@ débogueur et du stockage, liste des sites bannis.
 SorryIDHMoney/
 ├── background.js              # Service worker : cache AniList (10 min), routage des actions
 ├── manifest.example.json      # Référence versionnée (manifest.json est gitignored)
+├── fonts/                     # Bricolage Grotesque (titres et marque, licence OFL)
 ├── icons/
+│   ├── brand/                 # Logo : symbole, icône, versions horizontales (SVG)
 │   └── platforms/             # Logos des plateformes (PNG, SVG, WebP, ICO)
 ├── interfaces/                # Pages HTML de l'extension + leurs scripts
 ├── libs/                      # Modules partagés (toast-manager…)
@@ -355,7 +361,7 @@ SorryIDHMoney/
 │   │   └── spoofs/            # SDK des vérificateurs, remplacés via DNR
 │   ├── xposter-*.js           # Module Publication X (content, file, pont, relecture)
 │   └── browser-*.js           # Module Pont navigateur (pont, relevés, pastille, journal, débogueur)
-├── styles/                    # base.css (design tokens) + une feuille par interface
+├── styles/                    # base.css (système de design) + une feuille par interface
 └── tools/                     # Ponts locaux : Publication X et Pont navigateur (Node, sans deps)
 ```
 

@@ -1,269 +1,255 @@
 /**
- * Gestionnaire de toasts pour l'extension
+ * Notifications (« toasts ») posées par l'extension sur les sites.
+ *
+ * Tout vit dans un Shadow DOM : le CSS du site ne peut ni déformer les
+ * toasts, ni être touché par eux. Le message est inséré en texte, jamais
+ * interprété comme du HTML.
+ *
+ *   showToast('Auto-scroll activé', { type: 'info', duration: 1800 })
+ *
+ * Options : type ('success' | 'error' | 'warning' | 'info'), duration en ms
+ * (0 = reste jusqu'à fermeture), position ('top-right' par défaut, ou
+ * top-left, top-center, bottom-left, bottom-center, bottom-right) et buttons
+ * ([{ text, onClick }]).
  */
+import { BRAND, BRAND_SYMBOL_PATH } from '../scripts/brand.js';
+
+const HOST_ID = 'sorryidhmoney-toasts';
+
+const TYPES = {
+  success: { color: BRAND.ok, label: 'Succès', icon: '<path d="M20 6L9 17l-5-5"/>' },
+  error: { color: BRAND.danger, label: 'Erreur', icon: '<path d="M18 6L6 18M6 6l12 12"/>' },
+  warning: { color: BRAND.gold, label: 'Attention', icon: '<path d="M12 8v5M12 16.5h.01"/>' },
+  info: { color: BRAND.info, label: 'Info', icon: '<path d="M12 11v5M12 7.5h.01"/>' },
+};
+
+const POSITIONS = {
+  'top-left': 'top:16px;left:16px;align-items:flex-start;',
+  'top-center': 'top:16px;left:50%;transform:translateX(-50%);align-items:center;',
+  'top-right': 'top:16px;right:16px;align-items:flex-end;',
+  'bottom-left': 'bottom:16px;left:16px;align-items:flex-start;flex-direction:column-reverse;',
+  'bottom-center': 'bottom:16px;left:50%;transform:translateX(-50%);align-items:center;flex-direction:column-reverse;',
+  'bottom-right': 'bottom:16px;right:16px;align-items:flex-end;flex-direction:column-reverse;',
+};
+
+const STYLE = `
+  :host { all: initial; }
+  .stack {
+    position: fixed;
+    z-index: 2147483646;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: calc(100vw - 32px);
+    pointer-events: none;
+    font-family: ${BRAND.font};
+  }
+  .toast {
+    pointer-events: auto;
+    box-sizing: border-box;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 340px;
+    max-width: 100%;
+    padding: 10px 10px 10px 12px;
+    border-radius: ${BRAND.radius};
+    background: ${BRAND.surface};
+    border: 1px solid ${BRAND.border};
+    box-shadow: ${BRAND.shadow};
+    color: ${BRAND.text};
+    font-size: 13px;
+    line-height: 1.4;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transition: opacity .2s ease, transform .2s ease;
+  }
+  .stack.bottom .toast { transform: translateY(6px) scale(0.98); }
+  .toast.shown { opacity: 1; transform: none; }
+  .badge {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: color-mix(in srgb, var(--c) 18%, transparent);
+    color: var(--c);
+  }
+  .badge svg {
+    width: 15px; height: 15px;
+    fill: none; stroke: currentColor; stroke-width: 2.6;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 3px; }
+  .brand {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10.5px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase;
+    color: ${BRAND.faint};
+  }
+  .brand svg { width: 10px; height: 10px; }
+  .message { overflow-wrap: anywhere; white-space: pre-line; }
+  .actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .actions button {
+    font: inherit; font-size: 12px; font-weight: 600;
+    height: 26px; padding: 0 10px; border-radius: 7px; cursor: pointer;
+    border: 1px solid ${BRAND.surface3}; background: ${BRAND.surface2}; color: ${BRAND.text};
+  }
+  .actions button.primary { background: ${BRAND.gold}; border-color: ${BRAND.gold}; color: ${BRAND.onGold}; }
+  .close {
+    flex: 0 0 auto;
+    width: 24px; height: 24px; border-radius: 6px;
+    display: grid; place-items: center;
+    border: 0; background: transparent; color: ${BRAND.faint}; cursor: pointer;
+  }
+  .close:hover { background: ${BRAND.surface2}; color: ${BRAND.text}; }
+  .close svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+  button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255, 194, 51, .55); }
+  @media (prefers-reduced-motion: reduce) {
+    .toast { transition: opacity .15s linear; transform: none !important; }
+  }
+`;
+
 class ToastManager {
-    constructor(position = 'top-right') {
-        this.container = null;
-        this.position = position;
-        this.toasts = new Set(); // Pour suivre les toasts actifs
-        this.initContainer();
-    }
+  constructor() {
+    this.host = null;
+    this.stack = null;
+    this.position = 'top-right';
+  }
 
-    /**
-     * Définit la position des toasts
-     * @param {string} position - 'top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'
-     */
-    setPosition(position) {
-        this.position = position;
-        this.updateContainerPosition();
-    }
+  /** Crée l'hôte au premier toast seulement : rien n'est posé sur la page avant. */
+  ensureHost() {
+    if (this.host && this.host.isConnected) return;
+    this.host = document.createElement('div');
+    this.host.id = HOST_ID;
+    const root = this.host.attachShadow({ mode: 'closed' });
+    const style = document.createElement('style');
+    style.textContent = STYLE;
+    this.stack = document.createElement('div');
+    this.stack.setAttribute('role', 'status');
+    this.stack.setAttribute('aria-live', 'polite');
+    root.append(style, this.stack);
+    (document.body || document.documentElement).appendChild(this.host);
+    this.applyPosition();
+  }
 
-    updateContainerPosition() {
-        const positions = {
-            'top-left': 'top: 20px; left: 20px; flex-direction: column;',
-            'top-center': 'top: 20px; left: 50%; transform: translateX(-50%); flex-direction: column;',
-            'top-right': 'top: 20px; right: 20px; flex-direction: column;',
-            'bottom-left': 'bottom: 20px; left: 20px; flex-direction: column-reverse;',
-            'bottom-center': 'bottom: 20px; left: 50%; transform: translateX(-50%); flex-direction: column-reverse;',
-            'bottom-right': 'bottom: 20px; right: 20px; flex-direction: column-reverse;'
-        };
+  applyPosition() {
+    this.stack.className = 'stack' + (this.position.startsWith('bottom') ? ' bottom' : '');
+    this.stack.style.cssText = POSITIONS[this.position] || POSITIONS['top-right'];
+  }
 
-        const positionStyle = positions[this.position] || positions['top-right'];
-        this.container.style.cssText = `
-            position: fixed;
-            ${positionStyle}
-            z-index: 999999;
-            display: flex;
-            gap: 10px;
-            pointer-events: none;
-            max-height: 100vh;
-            overflow-y: hidden;
-            padding: 10px;
-        `;
-    }
+  setPosition(position) {
+    this.position = POSITIONS[position] ? position : 'top-right';
+    if (this.stack) this.applyPosition();
+  }
 
-    initContainer() {
-        if (!this.container) {
-            this.container = document.createElement('div');
-            this.container.id = 'extension-toast-container';
-            this.updateContainerPosition();
-            document.body.appendChild(this.container);
-        }
-    }
+  svg(paths) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    node.setAttribute('viewBox', '0 0 24 24');
+    node.setAttribute('aria-hidden', 'true');
+    // Chaînes constantes de ce module, jamais de donnée extérieure.
+    node.innerHTML = paths;
+    return node;
+  }
 
-    /**
-     * Affiche un toast avec des options avancées
-     * @param {string} message - Message à afficher
-     * @param {Object} options - Options du toast
-     * @param {string} options.type - Type de toast ('success', 'error', 'info', 'warning')
-     * @param {number} options.duration - Durée d'affichage en ms (défaut: 3000)
-     * @param {string} options.position - Position du toast
-     * @param {Array} options.buttons - Boutons à ajouter au toast [{text, onClick, type}]
-     */
-    show(message, options = {}) {
-        const {
-            type = 'info',
-            duration = 3000,
-            position,
-            buttons = []
-        } = options;
+  show(message, options = {}) {
+    const { type = 'info', duration = 3000, position, buttons = [] } = options;
+    if (position) this.setPosition(position);
+    this.ensureHost();
 
-        // Mettre à jour la position si spécifiée
-        if (position) {
-            this.setPosition(position);
-        }
+    const kind = TYPES[type] || TYPES.info;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.style.setProperty('--c', kind.color);
 
-        const toast = document.createElement('div');
-        toast.className = `extension-toast toast-${type}`;
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.appendChild(this.svg(kind.icon));
 
-        // Couleurs par type
-        const bgColors = {
-            success: '#f0fdf4',
-            error: '#fef2f2',
-            warning: '#fffbeb',
-            info: '#eff6ff'
-        };
-        const borderColors = {
-            success: '#bbf7d0',
-            error: '#fecaca',
-            warning: '#fde68a',
-            info: '#bfdbfe'
-        };
-        const textColors = {
-            success: '#166534',
-            error: '#991b1b',
-            warning: '#92400e',
-            info: '#1e40af'
-        };
+    const body = document.createElement('div');
+    body.className = 'body';
+    const brand = document.createElement('div');
+    brand.className = 'brand';
+    const mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    mark.setAttribute('viewBox', '0 0 256 256');
+    mark.setAttribute('aria-hidden', 'true');
+    const markPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    markPath.setAttribute('fill', BRAND.gold);
+    markPath.setAttribute('d', BRAND_SYMBOL_PATH);
+    mark.appendChild(markPath);
+    brand.append(mark, document.createTextNode('SorryIDHMoney'));
+    const text = document.createElement('div');
+    text.className = 'message';
+    text.textContent = String(message);
+    body.append(brand, text);
 
-        // Styles du toast
-        toast.style.cssText = `
-            padding: 10px 14px;
-            background: ${bgColors[type] || bgColors.info};
-            border: 1px solid ${borderColors[type] || borderColors.info};
-            border-radius: 6px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            opacity: 0;
-            pointer-events: auto;
-            transform: translateY(-8px);
-            transition: all 0.25s ease;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-width: 220px;
-            max-width: 360px;
-            margin: 0;
-            color: ${textColors[type] || textColors.info};
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 13px;
-            line-height: 1.4;
-        `;
-
-        // Contenu principal du toast
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'toast-content';
-        contentDiv.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        `;
-
-        // Ajouter l'icône et le message
-        const icon = this.getIconForType(type);
-        contentDiv.innerHTML = `
-            <span class="toast-icon" style="display:flex;flex-shrink:0;">${icon}</span>
-            <span class="toast-message" style="flex:1;min-width:0;">${message}</span>
-        `;
-        toast.appendChild(contentDiv);
-
-        // Ajouter les boutons si présents
-        if (buttons.length > 0) {
-            const buttonsContainer = document.createElement('div');
-            buttonsContainer.className = 'toast-buttons';
-            buttonsContainer.style.cssText = `
-                display: flex;
-                gap: 8px;
-                margin-top: 4px;
-                justify-content: flex-end;
-            `;
-
-            buttons.forEach(button => {
-                const btnElement = document.createElement('button');
-                btnElement.textContent = button.text;
-                btnElement.className = `toast-button ${button.type || 'default'}`;
-                btnElement.style.cssText = `
-                    padding: 4px 10px;
-                    border: 1px solid ${borderColors[type] || borderColors.info};
-                    border-radius: 4px;
-                    font-size: 11px;
-                    font-weight: 500;
-                    cursor: pointer;
-                    background: transparent;
-                    color: ${textColors[type] || textColors.info};
-                    transition: background 0.15s;
-                    font-family: inherit;
-                `;
-                btnElement.addEventListener('click', () => {
-                    if (typeof button.onClick === 'function') {
-                        button.onClick();
-                    }
-                    // Fermer le toast après avoir cliqué sur le bouton
-                    this.removeToast(toast);
-                });
-                buttonsContainer.appendChild(btnElement);
-            });
-
-            toast.appendChild(buttonsContainer);
-        }
-
-        // Ajouter le toast au conteneur
-        this.container.appendChild(toast);
-        this.toasts.add(toast);
-
-        // Animation d'entrée
-        requestAnimationFrame(() => {
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
+    if (buttons.length) {
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      for (const button of buttons) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = button.text;
+        if (button.type === 'primary') b.className = 'primary';
+        b.addEventListener('click', () => {
+          if (typeof button.onClick === 'function') button.onClick();
+          this.remove(toast);
         });
-
-        // Suppression automatique après la durée spécifiée
-        if (duration > 0) {
-            setTimeout(() => {
-                this.removeToast(toast);
-            }, duration);
-        }
-
-        return toast; // Retourner le toast pour permettre de le manipuler plus tard
+        actions.appendChild(b);
+      }
+      body.appendChild(actions);
     }
 
-    /**
-     * Supprime un toast spécifique avec animation
-     */
-    removeToast(toast) {
-        if (!this.toasts.has(toast)) return;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'close';
+    close.setAttribute('aria-label', 'Fermer');
+    close.appendChild(this.svg('<path d="M18 6L6 18M6 6l12 12"/>'));
+    close.addEventListener('click', () => this.remove(toast));
 
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-8px)';
-        setTimeout(() => {
-            if (this.container.contains(toast)) {
-                this.container.removeChild(toast);
-                this.toasts.delete(toast);
-            }
-        }, 300);
-    }
+    toast.append(badge, body, close);
+    this.stack.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('shown'));
 
-    /**
-     * Retourne la couleur de fond pour un type de bouton
-     */
-    getButtonColor(type) {
-        const colors = {
-            primary: '#2196F3',
-            success: '#4CAF50',
-            danger: '#F44336',
-            warning: '#FF9800',
-            info: '#03A9F4',
-            default: '#757575'
-        };
-        return colors[type] || colors.default;
-    }
+    // Survolé, il reste : on laisse le temps de lire.
+    let timer = null;
+    const arm = () => {
+      if (duration > 0) timer = setTimeout(() => this.remove(toast), duration);
+    };
+    toast.addEventListener('mouseenter', () => clearTimeout(timer));
+    toast.addEventListener('mouseleave', arm);
+    arm();
 
-    /**
-     * Retourne l'icône SVG correspondant au type de toast
-     */
-    getIconForType(type) {
-        const iconColors = {
-            success: '#166534',
-            error: '#991b1b',
-            warning: '#92400e',
-            info: '#1e40af'
-        };
-        const c = iconColors[type] || iconColors.info;
-        const icons = {
-            success: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`,
-            error: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>`,
-            warning: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>`,
-            info: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`
-        };
-        return icons[type] || icons.info;
-    }
+    return toast;
+  }
+
+  remove(toast) {
+    if (!toast.isConnected || toast.dataset.leaving) return;
+    toast.dataset.leaving = '1';
+    toast.classList.remove('shown');
+    setTimeout(() => {
+      toast.remove();
+      if (this.stack && !this.stack.children.length) {
+        this.host.remove();
+        this.host = null;
+        this.stack = null;
+      }
+    }, 220);
+  }
 }
 
-// Exporter une instance unique
 const toastManager = new ToastManager();
 
-// Exposer les méthodes nécessaires
+/** Affiche un toast si les notifications sont activées dans les paramètres. */
 export function showToast(message, options = {}) {
-    // Vérifier si les toasts sont activés
-    return new Promise(resolve => {
-        chrome.storage.sync.get({ enableToasts: true }, function (items) {
-            if (items.enableToasts) {
-                const toast = toastManager.show(message, options);
-                resolve(toast);
-            } else {
-                // Toasts désactivés, mais on peut quand même logger le message
-                console.log('[Toast désactivé]', message, options);
-                resolve(null);
-            }
-        });
+  return new Promise((resolve) => {
+    chrome.storage.sync.get({ enableToasts: true }, (items) => {
+      if (!items.enableToasts) {
+        console.log('[Toast désactivé]', message, options);
+        resolve(null);
+        return;
+      }
+      resolve(toastManager.show(message, options));
     });
-} 
+  });
+}

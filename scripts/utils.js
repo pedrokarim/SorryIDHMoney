@@ -1,3 +1,6 @@
+// Les éléments posés sur les sites reprennent les couleurs de scripts/brand.js
+// (encre et or) ; seuls les boutons MyAnimeList et AniList gardent les leurs.
+
 let linkElement = null;
 let secondLinkElement = null;
 let infoButtonElement = null;
@@ -38,14 +41,14 @@ export function addCustomButton(site, link, options = {}) {
     color: "#ffffff",
     width: "50px",
     height: "50px",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "14px",
     border: "none",
     cursor: "pointer",
     position: "fixed",
     bottom: "20px",
     left: "20px",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2)",
     overflow: "hidden",
     transition: 'background-color 0.2s',
     zIndex: '99999',
@@ -105,14 +108,14 @@ export function addEditButtons(animeName, onAnimeSelected) {
       color: "#ffffff",
       width: "50px",
       height: "50px",
-      borderRadius: "8px",
+      borderRadius: "12px",
       fontSize: "14px",
       border: "none",
       cursor: "pointer",
       position: "fixed",
       bottom: "20px",
       left: left,
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+      boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2)",
       overflow: "visible",
       transition: 'background-color 0.2s',
       zIndex: '99999',
@@ -131,13 +134,13 @@ export function addEditButtons(animeName, onAnimeSelected) {
       width: "18px",
       height: "18px",
       borderRadius: "50%",
-      backgroundColor: "#FF9800",
-      border: "2px solid #fff",
+      backgroundColor: "#ffc233",
+      border: "2px solid #17131f",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       fontSize: "10px",
-      color: "#fff",
+      color: "#17131f",
       fontWeight: "bold",
       boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
     });
@@ -193,31 +196,31 @@ export function addExitEditButton() {
   Object.assign(btn.style, {
     width: "50px",
     height: "50px",
-    borderRadius: "8px",
+    borderRadius: "12px",
     border: "none",
     cursor: "pointer",
     position: "fixed",
     bottom: "20px",
     left: `${20 * 3 + 50 * 2}px`,
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2)",
     overflow: "hidden",
     transition: 'background-color 0.2s',
     zIndex: '99999',
-    backgroundColor: "#e53e3e",
+    backgroundColor: "#17131f",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     animation: "none",
   });
 
-  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f5f1e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
   btn.addEventListener("mouseenter", () => {
-    btn.style.backgroundColor = "#c53030";
+    btn.style.backgroundColor = "#2e2938";
   });
 
   btn.addEventListener("mouseleave", () => {
-    btn.style.backgroundColor = "#e53e3e";
+    btn.style.backgroundColor = "#17131f";
   });
 
   btn.addEventListener("click", (e) => {
@@ -258,17 +261,17 @@ export function addInfoButton(animeData) {
   Object.assign(element.style, {
     width: "50px",
     height: "50px",
-    borderRadius: "8px",
+    borderRadius: "12px",
     border: "none",
     cursor: "pointer",
     position: "fixed",
     bottom: "20px",
     left: `${20 * 3 + 50 * 2}px`,
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)",
+    boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2)",
     overflow: "hidden",
     transition: "background-color 0.2s, transform 0.2s",
     zIndex: "99999",
-    background: "linear-gradient(135deg, #805ad5 0%, #553c9a 100%)",
+    background: "#17131f",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -276,7 +279,7 @@ export function addInfoButton(animeData) {
   });
 
   element.innerHTML = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ffc233" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
       <line x1="12" y1="16" x2="12" y2="12"/>
       <line x1="12" y1="8" x2="12.01" y2="8"/>
@@ -370,12 +373,12 @@ function formatStatus(status) {
 
 function statusColor(status) {
   switch (status) {
-    case "RELEASING": return "#48bb78";
-    case "FINISHED": return "#4299e1";
-    case "NOT_YET_RELEASED": return "#ed8936";
-    case "CANCELLED": return "#e53e3e";
-    case "HIATUS": return "#ecc94b";
-    default: return "#718096";
+    case "RELEASING": return "#4fd18b";
+    case "FINISHED": return "#8ab0ff";
+    case "NOT_YET_RELEASED": return "#ffc233";
+    case "CANCELLED": return "#ff7a85";
+    case "HIATUS": return "#ff9f5a";
+    default: return "#8c8597";
   }
 }
 
@@ -395,14 +398,14 @@ function createInfoPopover(anchorElement, animeData) {
     left: "12px",
     width: "420px",
     maxHeight: "560px",
-    backgroundColor: "#0f1419",
+    backgroundColor: "#1a1720",
     borderRadius: "14px",
     boxShadow: "0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)",
     display: "flex",
     flexDirection: "column",
     zIndex: "999999",
-    color: "#fff",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    color: "#f5f1e8",
+    fontFamily: '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
     overflow: "hidden",
     animation: "infoPopoverIn 0.18s ease-out",
   });
@@ -416,14 +419,14 @@ function createInfoPopover(anchorElement, animeData) {
     left: `${anchorRect.left - 12 + 22}px`,
     width: "14px",
     height: "14px",
-    backgroundColor: "#0f1419",
+    backgroundColor: "#1a1720",
     transform: "rotate(45deg)",
     boxShadow: "3px 3px 6px rgba(0,0,0,0.25)",
     zIndex: "-1",
   });
   infoPopoverElement.appendChild(arrow);
 
-  const accent = animeData.coverImage?.color || "#805ad5";
+  const accent = animeData.coverImage?.color || "#ffc233";
 
   // ─── Bannière + cover ───
   // Si pas de bannière, on réutilise la cover en mode crop
@@ -437,7 +440,7 @@ function createInfoPopover(anchorElement, animeData) {
     position: "relative",
     width: "100%",
     height: "120px",
-    backgroundColor: "#1a1f2e",
+    backgroundColor: "#231f2b",
     backgroundImage: bannerSrc ? `url("${bannerSrc}")` : "none",
     backgroundSize: "cover",
     backgroundPosition: animeData.bannerImage ? "center" : "center 20%",
@@ -449,7 +452,7 @@ function createInfoPopover(anchorElement, animeData) {
   Object.assign(bannerOverlay.style, {
     position: "absolute",
     inset: "0",
-    background: `linear-gradient(180deg, rgba(15,20,25,0.35) 0%, rgba(15,20,25,0.7) 60%, #0f1419 100%)`,
+    background: `linear-gradient(180deg, rgba(26,23,32,0.35) 0%, rgba(26,23,32,0.72) 60%, #1a1720 100%)`,
   });
   bannerWrap.appendChild(bannerOverlay);
 
@@ -533,7 +536,7 @@ function createInfoPopover(anchorElement, animeData) {
     subTitle.textContent = animeData.title.english;
     Object.assign(subTitle.style, {
       fontSize: "11px",
-      color: "#a0aec0",
+      color: "#a9a2b4",
       marginTop: "3px",
       whiteSpace: "nowrap",
       overflow: "hidden",
@@ -566,7 +569,7 @@ function createInfoPopover(anchorElement, animeData) {
     marginTop: "4px",
   });
 
-  const metaChip = (label, value, bg = "rgba(255,255,255,0.06)", color = "#e2e8f0") => {
+  const metaChip = (label, value, bg = "rgba(255,255,255,0.06)", color = "#f5f1e8") => {
     const chip = document.createElement("div");
     chip.innerHTML = `<span style="opacity:0.6;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;">${label}</span><span style="font-weight:600;">${value}</span>`;
     Object.assign(chip.style, {
@@ -588,7 +591,7 @@ function createInfoPopover(anchorElement, animeData) {
 
   const score = animeData.averageScore || animeData.meanScore;
   if (score) {
-    const scoreChip = metaChip("Score", `${score}%`, "rgba(245,158,11,0.15)", "#fbbf24");
+    const scoreChip = metaChip("Score", `${score}%`, "rgba(255,194,51,0.16)", "#ffc233");
     metaRow.appendChild(scoreChip);
   }
 
@@ -635,7 +638,7 @@ function createInfoPopover(anchorElement, animeData) {
       nextBox.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:#a0aec0;">Épisode ${next.episode}</div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:#a9a2b4;">Épisode ${next.episode}</div>
           <div style="font-size:13px;font-weight:600;color:#fff;margin-top:2px;">dans ${timeLeft}</div>
         </div>
       `;
@@ -668,7 +671,7 @@ function createInfoPopover(anchorElement, animeData) {
   const studios = animeData.studios?.nodes || [];
   if (studios.length) {
     const studioEl = document.createElement("div");
-    studioEl.innerHTML = `<span style="opacity:0.55;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;margin-right:6px;">Studio</span><span style="font-size:12px;color:#e2e8f0;font-weight:500;">${studios.map((s) => s.name).join(", ")}</span>`;
+    studioEl.innerHTML = `<span style="opacity:0.55;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;margin-right:6px;">Studio</span><span style="font-size:12px;color:#f5f1e8;font-weight:500;">${studios.map((s) => s.name).join(", ")}</span>`;
     body.appendChild(studioEl);
   }
 
@@ -679,7 +682,7 @@ function createInfoPopover(anchorElement, animeData) {
     Object.assign(desc.style, {
       fontSize: "12px",
       lineHeight: "1.55",
-      color: "#cbd5e0",
+      color: "#d9d3e2",
       whiteSpace: "pre-wrap",
       overflow: "hidden",
       display: "-webkit-box",
@@ -746,8 +749,8 @@ function createInfoPopover(anchorElement, animeData) {
   sStyle.textContent = `
     .info-popover-body::-webkit-scrollbar { width: 6px; }
     .info-popover-body::-webkit-scrollbar-track { background: transparent; }
-    .info-popover-body::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 3px; }
-    .info-popover-body::-webkit-scrollbar-thumb:hover { background: #4a5568; }
+    .info-popover-body::-webkit-scrollbar-thumb { background: #3d3749; border-radius: 3px; }
+    .info-popover-body::-webkit-scrollbar-thumb:hover { background: #4d465a; }
     @keyframes infoPopoverIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
@@ -801,13 +804,13 @@ export function enableEditModeOnButtons(animeName, onAnimeSelected) {
       width: "18px",
       height: "18px",
       borderRadius: "50%",
-      backgroundColor: "#FF9800",
-      border: "2px solid #fff",
+      backgroundColor: "#ffc233",
+      border: "2px solid #17131f",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
       fontSize: "10px",
-      color: "#fff",
+      color: "#17131f",
       fontWeight: "bold",
       boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
       zIndex: "100000",
@@ -864,14 +867,14 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
     left: "12px",
     width: "380px",
     maxHeight: "480px",
-    backgroundColor: "#1a1a2e",
+    backgroundColor: "#1a1720",
     borderRadius: "12px",
     boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.05)",
     display: "flex",
     flexDirection: "column",
     zIndex: "999999",
-    color: "#fff",
-    fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    color: "#f5f1e8",
+    fontFamily: '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
     overflow: "hidden",
   });
 
@@ -883,7 +886,7 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
     left: `${anchorElement.getBoundingClientRect().left - 12 + 25}px`,
     width: "16px",
     height: "16px",
-    backgroundColor: "#1a1a2e",
+    backgroundColor: "#1a1720",
     transform: "rotate(45deg)",
     boxShadow: "4px 4px 8px rgba(0,0,0,0.2)",
     zIndex: "-1",
@@ -902,17 +905,17 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
 
   const title = document.createElement("div");
   title.textContent = "Associer un anime";
-  Object.assign(title.style, { fontSize: "14px", fontWeight: "600", color: "#e0e0e0" });
+  Object.assign(title.style, { fontSize: "14px", fontWeight: "600", color: "#f5f1e8" });
 
   const closeBtn = document.createElement("button");
   closeBtn.textContent = "\u00d7";
   Object.assign(closeBtn.style, {
-    background: "none", border: "none", color: "#666", fontSize: "18px",
+    background: "none", border: "none", color: "#8c8597", fontSize: "18px",
     cursor: "pointer", padding: "0 0 0 8px", lineHeight: "1",
   });
   closeBtn.addEventListener("click", destroyPopover);
-  closeBtn.addEventListener("mouseenter", () => closeBtn.style.color = "#fff");
-  closeBtn.addEventListener("mouseleave", () => closeBtn.style.color = "#666");
+  closeBtn.addEventListener("mouseenter", () => closeBtn.style.color = "#f5f1e8");
+  closeBtn.addEventListener("mouseleave", () => closeBtn.style.color = "#8c8597");
 
   header.appendChild(title);
   header.appendChild(closeBtn);
@@ -923,7 +926,7 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
   Object.assign(info.style, {
     padding: "0 16px 8px",
     fontSize: "12px",
-    color: "#666",
+    color: "#8c8597",
     fontStyle: "italic",
     whiteSpace: "nowrap",
     overflow: "hidden",
@@ -942,17 +945,17 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
   Object.assign(input.style, {
     width: "100%",
     padding: "8px 12px",
-    border: "1px solid #333",
+    border: "1px solid #3d3749",
     borderRadius: "6px",
-    backgroundColor: "#16213e",
-    color: "#fff",
+    backgroundColor: "#231f2b",
+    color: "#f5f1e8",
     fontSize: "13px",
     outline: "none",
     boxSizing: "border-box",
     transition: "border-color 0.2s",
   });
-  input.addEventListener("focus", () => input.style.borderColor = "#805ad5");
-  input.addEventListener("blur", () => input.style.borderColor = "#333");
+  input.addEventListener("focus", () => input.style.borderColor = "#ffc233");
+  input.addEventListener("blur", () => input.style.borderColor = "#3d3749");
   inputWrap.appendChild(input);
 
   // Results list
@@ -974,14 +977,14 @@ function createPopover(anchorElement, animeName, onAnimeSelected) {
   scrollStyle.textContent = `
     .search-popover-results::-webkit-scrollbar { width: 5px; }
     .search-popover-results::-webkit-scrollbar-track { background: transparent; }
-    .search-popover-results::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-    .search-popover-results::-webkit-scrollbar-thumb:hover { background: #555; }
+    .search-popover-results::-webkit-scrollbar-thumb { background: #3d3749; border-radius: 3px; }
+    .search-popover-results::-webkit-scrollbar-thumb:hover { background: #4d465a; }
     .custom-button-edit { animation: none !important; }
   `;
 
   const loading = document.createElement("div");
   loading.textContent = "Recherche en cours...";
-  Object.assign(loading.style, { textAlign: "center", padding: "16px", color: "#555", fontSize: "12px" });
+  Object.assign(loading.style, { textAlign: "center", padding: "16px", color: "#8c8597", fontSize: "12px" });
   resultsList.appendChild(loading);
 
   popoverElement.appendChild(header);
@@ -1133,8 +1136,8 @@ function createResultItem(anime, animeName, onAnimeSelected) {
   });
 
   item.addEventListener("mouseenter", () => {
-    item.style.backgroundColor = "#16213e";
-    item.style.borderColor = "#805ad5";
+    item.style.backgroundColor = "#231f2b";
+    item.style.borderColor = "#ffc233";
   });
   item.addEventListener("mouseleave", () => {
     item.style.backgroundColor = "transparent";
@@ -1157,7 +1160,7 @@ function createResultItem(anime, animeName, onAnimeSelected) {
   const titleEl = document.createElement("div");
   titleEl.textContent = anime.title?.romaji || anime.title?.english || "???";
   Object.assign(titleEl.style, {
-    fontSize: "13px", fontWeight: "600", color: "#e0e0e0",
+    fontSize: "13px", fontWeight: "600", color: "#f5f1e8",
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
   });
 
@@ -1166,7 +1169,7 @@ function createResultItem(anime, animeName, onAnimeSelected) {
     subtitleEl.textContent = anime.title.english;
   }
   Object.assign(subtitleEl.style, {
-    fontSize: "11px", color: "#777", marginTop: "1px",
+    fontSize: "11px", color: "#a9a2b4", marginTop: "1px",
     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
   });
 
@@ -1176,7 +1179,7 @@ function createResultItem(anime, animeName, onAnimeSelected) {
   if (anime.episodes) metaParts.push(`${anime.episodes} eps`);
   if (anime.seasonYear) metaParts.push(anime.seasonYear);
   metaEl.textContent = metaParts.join(" \u2022 ");
-  Object.assign(metaEl.style, { fontSize: "10px", color: "#555", marginTop: "2px" });
+  Object.assign(metaEl.style, { fontSize: "10px", color: "#8c8597", marginTop: "2px" });
 
   infoDiv.appendChild(titleEl);
   if (subtitleEl.textContent) infoDiv.appendChild(subtitleEl);
