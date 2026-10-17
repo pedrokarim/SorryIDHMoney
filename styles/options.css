@@ -1,245 +1,36 @@
-@import 'base.css';
+/* Paramètres. Tout le reste vient de base.css. */
 
-body {
-  width: 500px;
-  min-width: 500px;
-  max-width: 500px;
-  background: #f8f9fa;
+/* Le retour n'a de sens que dans la popup ; la marque, qu'en onglet. */
+.tab-only {
+  display: none;
 }
 
-.manager {
-  padding: 12px;
+@media (min-width: 600px) {
+  .popup-only {
+    display: none;
+  }
+
+  .tab-only {
+    display: block;
+  }
 }
 
-.manager-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+.row-heading {
+  min-height: 0;
+  padding-top: 12px;
+  padding-bottom: 4px;
 }
 
-.manager-header h1 {
-  font-size: 15px;
-  margin: 0;
-  color: #333;
+.rows > .row-heading + .row {
+  border-top: 0;
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: var(--primary);
-  color: #fff;
-  text-decoration: none;
-  transition: background 0.15s;
-  flex-shrink: 0;
+.row.note {
+  min-height: 0;
+  padding: 8px 14px 10px;
+  font-size: var(--fs-xs);
 }
 
-.back-btn:hover {
-  background: var(--primary-dark);
-  text-decoration: none;
-  color: #fff;
-}
-
-.back-btn svg {
-  stroke: #fff;
-}
-
-/* Settings groups */
-.settings-group {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  margin-bottom: 6px;
-  overflow: hidden;
-}
-
-.settings-group-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: #333;
-  user-select: none;
-  transition: background 0.15s;
-}
-
-.settings-group-header:hover {
-  background: #f8f9fa;
-}
-
-.settings-group-header .chevron {
-  transition: transform 0.2s;
-  color: #888;
-  flex-shrink: 0;
-}
-
-.settings-group[data-collapsed="true"] .chevron {
-  transform: rotate(-90deg);
-}
-
-.settings-group-content {
-  padding: 4px 12px 10px;
-  border-top: 1px solid #f0f0f0;
-}
-
-/* Setting items */
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-}
-
-.setting-item + .setting-item {
-  border-top: 1px solid #f8f8f8;
-}
-
-.setting-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #444;
-  flex: 1;
-}
-
-input[type="color"] {
-  width: 32px;
-  height: 24px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: #fff;
-  padding: 1px;
-  cursor: pointer;
-}
-
-select {
-  width: auto;
-  min-width: 140px;
-  padding: 5px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
-  background: #fff;
-  cursor: pointer;
-}
-
-select:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(128,90,213,0.12);
-}
-
-input[type="number"] {
-  width: 80px;
-  padding: 5px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
-  background: #fff;
-  text-align: right;
-}
-
-input[type="number"]:focus {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(128,90,213,0.12);
-}
-
-/* Theme preview */
-.theme-preview {
-  margin: 4px 0 8px;
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid #eee;
-  height: 48px;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s;
-}
-
-.theme-preview-bar {
-  height: 14px;
-  background: var(--primary);
-  transition: background 0.3s;
-}
-
-.theme-preview-content {
-  flex: 1;
-  padding: 6px 10px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  background: #fff;
-  transition: background 0.3s;
-}
-
-.theme-preview-text {
-  height: 4px;
-  width: 70%;
-  background: #ddd;
-  border-radius: 2px;
-  transition: background 0.3s;
-}
-
-.theme-preview-text.short {
-  width: 40%;
-}
-
-/* Platform icons */
-.platform-icon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  margin-right: 8px;
-  vertical-align: middle;
-  border-radius: 3px;
-}
-
-/* Dev tools */
-.dev-tools {
-  padding: 4px 0;
-}
-
-.dev-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: #f5f5f5;
-  color: #555;
-  text-decoration: none;
-  border-radius: 4px;
-  font-size: 12px;
-  transition: all 0.15s;
-}
-
-.dev-link:hover {
-  background: #eee;
-  color: #333;
-  text-decoration: none;
-}
-
-.dev-link svg {
-  color: #888;
-  flex-shrink: 0;
-}
-
-/* Bypass verification d'age — sous-toggles grises quand le module maitre est off */
-.setting-item.is-disabled {
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-/* Sous-option imbriquée (ex. pastille de statut X, dépend du toggle X) */
-.setting-label-nested {
-  padding-left: 26px;
-  font-size: 12px;
-  color: var(--gray-dark, #666);
+.row .select {
+  max-width: 190px;
 }

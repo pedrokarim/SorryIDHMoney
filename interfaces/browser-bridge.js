@@ -50,14 +50,14 @@ function renderStatus(enabled, lastContact) {
   const detail = $('bb-status-detail');
 
   if (!enabled) {
-    dot.className = 'bb-dot';
+    dot.className = 'dot';
     title.textContent = 'Module coupé';
     detail.textContent = 'Active-le dans les réglages pour que le pont réponde.';
     return;
   }
 
   const alive = Date.now() - lastContact < LOST_AFTER_MS;
-  dot.className = 'bb-dot ' + (alive ? 'alive' : 'dead');
+  dot.className = 'dot ' + (alive ? 'ok' : 'err');
   title.textContent = alive ? 'Pont connecté' : 'Pont absent';
   detail.textContent = alive
     ? 'Le serveur local répond : un ordre part dans la seconde.'
@@ -92,7 +92,7 @@ function shortPath(entry) {
 }
 
 function renderDetail(entry) {
-  const detail = el('div', 'bb-detail');
+  const detail = el('div', 'log-detail');
   const list = el('dl');
 
   const add = (term, value, className) => {
@@ -129,51 +129,55 @@ function renderDetail(entry) {
 
 function renderList() {
   const list = $('bb-list');
-  const pager = $('bb-pager');
-  list.replaceChildren();
-
   const visible = view.history.filter(matches);
   const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
   // Le journal a pu rétrécir (vidé, filtré) : on ne reste pas sur une page vide.
   view.page = Math.min(view.page, pages - 1);
 
   if (!visible.length) {
-    list.appendChild(el('div', 'bb-empty', view.history.length
+    const box = el('div', 'empty');
+    const img = el('img');
+    img.src = '../icons/brand/symbol.svg';
+    img.alt = '';
+    box.append(img, el('span', '', view.history.length
       ? 'Aucune ligne ne correspond à ce filtre.'
-      : 'Rien n\'a encore été lu. Le journal se remplira au premier ordre reçu.'));
-    pager.hidden = true;
+      : 'Rien n’a encore été lu. Le journal se remplira au premier ordre reçu.'));
+    list.replaceChildren(box);
+    window.UI.pager($('bb-pager'), 1, 1, () => {});
     return;
   }
 
+  const rows = [];
   for (const entry of visible.slice(view.page * PAGE_SIZE, (view.page + 1) * PAGE_SIZE)) {
     const open = view.expanded === entry.id;
 
-    const row = el('button', 'bb-row');
+    const row = el('button', 'row log-row');
     row.type = 'button';
     row.setAttribute('aria-expanded', open ? 'true' : 'false');
-    row.appendChild(el('span', 'bb-time', formatTime(entry.at)));
-    row.appendChild(el('span', 'bb-badge' + (entry.ok ? '' : ' failed'), LABELS[entry.action] || entry.action));
+    row.appendChild(el('span', 'log-time', formatTime(entry.at)));
+    row.appendChild(el('span', 'badge ' + (entry.ok ? 'ok' : 'err'), LABELS[entry.action] || entry.action));
 
-    const where = el('span', 'bb-where');
+    const where = el('span', 'log-where');
     where.appendChild(document.createTextNode(entry.host || '–'));
     const path = shortPath(entry);
     if (path && path !== '/') where.appendChild(el('em', '', path));
+    where.title = entry.url || '';
     row.appendChild(where);
 
-    row.appendChild(el('span', 'bb-summary', entry.ok ? entry.summary : 'échec'));
+    row.appendChild(el('span', 'log-summary', entry.ok ? entry.summary : 'échec'));
     row.addEventListener('click', () => {
       view.expanded = open ? null : entry.id;
       renderList();
     });
-    list.appendChild(row);
-
-    if (open) list.appendChild(renderDetail(entry));
+    rows.push(row);
+    if (open) rows.push(renderDetail(entry));
   }
+  list.replaceChildren(...rows);
 
-  pager.hidden = pages <= 1;
-  $('bb-page').textContent = `${view.page + 1} / ${pages}`;
-  $('bb-prev').disabled = view.page === 0;
-  $('bb-next').disabled = view.page >= pages - 1;
+  window.UI.pager($('bb-pager'), view.page + 1, pages, (p) => {
+    view.page = p - 1;
+    renderList();
+  });
 }
 
 function refresh() {
@@ -199,8 +203,6 @@ $('bb-search').addEventListener('input', (event) => {
   renderList();
 });
 
-$('bb-prev').addEventListener('click', () => { view.page -= 1; renderList(); });
-$('bb-next').addEventListener('click', () => { view.page += 1; renderList(); });
 
 /*
  * Vider demande deux clics : le premier transforme le bouton en question, le
@@ -208,25 +210,18 @@ $('bb-next').addEventListener('click', () => { view.page += 1; renderList(); });
  */
 (function setupClear() {
   const button = $('bb-clear');
-  const icon = button.innerHTML;
   let armed = null;
-
-  const disarm = () => {
-    clearTimeout(armed);
-    armed = null;
-    button.classList.remove('confirm');
-    button.innerHTML = icon;
-  };
 
   button.addEventListener('click', () => {
     if (!armed) {
       if (!view.history.length) return;
-      button.classList.add('confirm');
-      button.textContent = 'Tout effacer ?';
-      armed = setTimeout(disarm, 3000);
+      window.UI.flash(button, 'Tout effacer ?', 3000);
+      armed = setTimeout(() => { armed = null; }, 3000);
       return;
     }
-    disarm();
+    clearTimeout(armed);
+    armed = null;
+    window.UI.flash(button, 'Vidé');
     view.expanded = null;
     chrome.storage.local.set({ [HISTORY_KEY]: [] });
   });

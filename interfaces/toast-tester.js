@@ -1,107 +1,58 @@
-// Charger le gestionnaire de toasts
-const toastScript = chrome.runtime.getURL('libs/toast-manager.js');
+/* Testeur de toasts : envoie une notification d'essai sur l'onglet actif. */
 
-// Fonction pour envoyer un toast à la page active
-async function sendToastToActiveTab(message, options) {
-    try {
-        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-        const tab = tabs[0];
+const $ = (id) => document.getElementById(id);
 
-        if (!tab) {
-            showError("Aucun onglet actif trouvé");
-            return;
-        }
+const PRESETS = {
+  success: { message: 'Opération réussie !', duration: 3000 },
+  error: { message: 'Une erreur est survenue.', duration: 4000 },
+  warning: { message: 'Attention, quelque chose demande ton avis.', duration: 3500 },
+  info: { message: 'Une information importante.', duration: 3000 },
+};
 
-        // Vérifier si l'URL est valide
-        if (!tab.url || tab.url.startsWith('chrome://')) {
-            showError("Impossible d'afficher des toasts sur cette page");
-            return;
-        }
-
-        // Injecter le content script s'il n'est pas déjà présent
-        await chrome.scripting.executeScript({
-            target: { tabId: tab.id },
-            files: ['scripts/toast-content.js']
-        });
-
-        // Envoyer le message après l'injection
-        await chrome.tabs.sendMessage(tab.id, {
-            action: "showToast",
-            message: message,
-            options: options
-        }, response => {
-            console.log("Toast affiché avec succès:", response);
-        });
-
-    } catch (error) {
-        showError("Impossible d'afficher le toast sur cette page");
-        console.error("Erreur lors de l'envoi du toast:", error);
-    }
-}
-
-// Fonction pour afficher une erreur dans l'interface
 function showError(message) {
-    const errorDiv = document.getElementById('error-message') || createErrorDiv();
-    errorDiv.textContent = message;
-    errorDiv.style.opacity = '1';
-    setTimeout(() => {
-        errorDiv.style.opacity = '0';
-    }, 3000);
+  const box = $('error-message');
+  box.textContent = message;
+  box.hidden = false;
+  clearTimeout(box._timer);
+  box._timer = setTimeout(() => { box.hidden = true; }, 3500);
 }
 
-// Créer la div d'erreur si elle n'existe pas
-function createErrorDiv() {
-    const errorDiv = document.createElement('div');
-    errorDiv.id = 'error-message';
-    document.body.appendChild(errorDiv);
-    return errorDiv;
+async function sendToastToActiveTab(message, options) {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) { showError('Aucun onglet actif trouvé.'); return; }
+    if (!tab.url || !/^https?:/.test(tab.url)) {
+      showError('Impossible d’afficher un toast sur cette page : ouvre un site web.');
+      return;
+    }
+    // Le script de réception n'est pas posé partout : on l'injecte (il ne
+    // s'installe qu'une fois par page).
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['scripts/toast-content.js'] });
+    await chrome.tabs.sendMessage(tab.id, { action: 'showToast', message, options });
+  } catch (error) {
+    showError('Impossible d’afficher le toast sur cette page.');
+    console.error('[Toasts] Envoi impossible :', error);
+  }
 }
 
-// Afficher un toast personnalisé
-function showCustomToast() {
-    const message = document.getElementById('message').value;
-    const type = document.getElementById('type').value;
-    const duration = parseInt(document.getElementById('duration').value);
-    const position = document.getElementById('position').value;
-
-    sendToastToActiveTab(message, { type, duration, position });
+function currentOptions(type, duration) {
+  const options = { type, duration, position: $('position').value };
+  if ($('with-buttons').checked) {
+    // Les boutons ne traversent pas le message (pas de fonctions) : leur clic
+    // ferme simplement le toast.
+    options.buttons = [{ text: 'Plus tard' }, { text: 'Voir', type: 'primary' }];
+  }
+  return options;
 }
 
-// Afficher un toast prédéfini
-function showPresetToast(type) {
-    const presets = {
-        success: { message: '✨ Opération réussie !', duration: 3000 },
-        error: { message: '❌ Une erreur est survenue', duration: 4000 },
-        warning: { message: '⚠️ Attention requise', duration: 3500 },
-        info: { message: 'ℹ️ Information importante', duration: 3000 }
-    };
-
-    const { message, duration } = presets[type];
-    const position = document.getElementById('position').value;
-    sendToastToActiveTab(message, { type, duration, position });
-}
-
-// Ajouter les écouteurs d'événements
-document.addEventListener('DOMContentLoaded', () => {
-    // Bouton toast personnalisé
-    document.getElementById('custom-toast-btn').addEventListener('click', showCustomToast);
-
-    // Boutons preset
-    document.querySelectorAll('.preset-item').forEach(button => {
-        button.addEventListener('click', () => {
-            showPresetToast(button.dataset.type);
-        });
-    });
-
-    // Toggle des sections (collapse/expand)
-    document.querySelectorAll('.settings-group-header').forEach(header => {
-        header.addEventListener('click', () => {
-            const group = header.closest('.settings-group');
-            const content = group.querySelector('.settings-group-content');
-            const isCollapsed = group.dataset.collapsed === 'true';
-
-            group.dataset.collapsed = isCollapsed ? 'false' : 'true';
-            content.style.display = isCollapsed ? '' : 'none';
-        });
-    });
+$('custom-toast-btn').addEventListener('click', () => {
+  const duration = Math.max(0, parseInt($('duration').value, 10) || 0);
+  sendToastToActiveTab($('message').value || 'Ceci est un test !', currentOptions($('type').value, duration));
 });
+
+for (const button of document.querySelectorAll('.preset')) {
+  button.addEventListener('click', () => {
+    const { message, duration } = PRESETS[button.dataset.type];
+    sendToastToActiveTab(message, currentOptions(button.dataset.type, duration));
+  });
+}

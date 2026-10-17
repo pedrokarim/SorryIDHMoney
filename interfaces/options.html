@@ -3,439 +3,402 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Configuration de l'extension</title>
+  <title>Paramètres – SorryIDHMoney</title>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="../styles/base.css">
   <link rel="stylesheet" href="../styles/options.css">
 </head>
 <body>
-  <div class="manager">
-    <div class="manager-header">
-      <a href="popup.html" class="back-btn" title="Retour">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </a>
-      <h1>Paramètres</h1>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="general">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Général</span>
+  <div class="app">
+    <header class="app-header">
+      <a href="popup.html" class="icon-btn popup-only" title="Retour" aria-label="Retour"><i data-icon="arrow-left"></i></a>
+      <img class="brand-mark tab-only" src="../icons/brand/icon.svg" alt="">
+      <div class="app-header-title">
+        <h1>Paramètres</h1>
+        <span class="subtitle">Enregistrés à chaque changement</span>
       </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Couleur de fond</span>
-          <input type="color" id="background-color" name="background-color" value="#ffffff">
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Thème</span>
-          <select id="theme" name="theme">
+    </header>
+
+    <!-- Apparence -->
+    <details class="group" data-group="appearance" open>
+      <summary>
+        <span class="group-icon"><i data-icon="palette"></i></span>
+        <span class="group-text">
+          <span class="group-title">Apparence</span>
+          <span class="group-desc">Thème et notifications</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row" for="theme">
+          <span class="row-text"><span class="row-label">Thème</span></span>
+          <select class="select" id="theme">
+            <option value="auto">Automatique</option>
             <option value="light">Clair</option>
             <option value="dark">Sombre</option>
-            <option value="purple">Violet</option>
-            <option value="ocean">Océan</option>
-            <option value="forest">Forêt</option>
-            <option value="sunset">Coucher de soleil</option>
-            <option value="cherry">Cerisier</option>
-            <option value="midnight">Minuit</option>
           </select>
-        </div>
-        <div class="theme-preview" id="theme-preview">
-          <div class="theme-preview-bar"></div>
-          <div class="theme-preview-content">
-            <div class="theme-preview-text"></div>
-            <div class="theme-preview-text short"></div>
+        </label>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Notifications sur les pages</span>
+            <span class="row-desc">Petits messages en haut à droite (rewards Twitch, auto-scroll…)</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="enable-toasts"><span class="track"></span></span>
+        </label>
+      </div>
+    </details>
+
+    <!-- Animes -->
+    <details class="group" data-group="anime" open>
+      <summary>
+        <span class="group-icon"><i data-icon="film"></i></span>
+        <span class="group-text">
+          <span class="group-title">Animes</span>
+          <span class="group-desc">Boutons MyAnimeList et AniList sur les sites de streaming</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/myanimelist.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Bouton MyAnimeList</span></span>
+          <span class="switch"><input type="checkbox" id="enable-mal"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/anilist.svg" alt=""></span>
+          <span class="row-text"><span class="row-label">Bouton AniList</span></span>
+          <span class="switch"><input type="checkbox" id="enable-anilist"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><i data-icon="sparkles"></i></span>
+          <span class="row-text">
+            <span class="row-label">Animer les boutons</span>
+            <span class="row-desc">Petite animation à l'apparition</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="switcher-animations"><span class="track"></span></span>
+        </label>
+        <div class="row row-heading"><span class="section-title">Plateformes de streaming</span></div>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/voiranime.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Voiranime</span></span>
+          <span class="switch"><input type="checkbox" id="enable-voiranime"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/crunchyroll.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Crunchyroll</span></span>
+          <span class="switch"><input type="checkbox" id="enable-crunchyroll"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/adkami.png" alt=""></span>
+          <span class="row-text"><span class="row-label">ADKami</span></span>
+          <span class="switch"><input type="checkbox" id="enable-adkami"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/adn.webp" alt=""></span>
+          <span class="row-text"><span class="row-label">ADN</span></span>
+          <span class="switch"><input type="checkbox" id="enable-adn"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-icon"><img src="../icons/platforms/gumgum.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Gum Gum Streaming</span></span>
+          <span class="switch"><input type="checkbox" id="enable-gumgum"><span class="track"></span></span>
+        </label>
+        <p class="row note">Les plateformes sont prises en compte au prochain chargement de la page.</p>
+      </div>
+    </details>
+
+    <!-- YouTube -->
+    <details class="group" data-group="youtube">
+      <summary>
+        <span class="group-icon"><img src="../icons/platforms/youtube.png" alt=""></span>
+        <span class="group-text">
+          <span class="group-title">YouTube</span>
+          <span class="group-desc">Lecture fluide et défilement automatique des Shorts</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Lecture fluide des vidéos</span>
+            <span class="row-desc">Évite les à-coups au changement de qualité</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="enable-yt-smooth-playback"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Défilement automatique des Shorts</span>
+            <span class="row-desc">Passe au Short suivant à la fin de la lecture</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="enable-yt-shorts-autoscroll"><span class="track"></span></span>
+        </label>
+        <label class="row sub" for="yt-shorts-replay-count">
+          <span class="row-text"><span class="row-label wrap">Relectures avant de passer</span></span>
+          <input type="number" class="input input-num" id="yt-shorts-replay-count" min="0" max="50" step="1">
+        </label>
+        <label class="row sub" for="yt-shorts-scroll-delay">
+          <span class="row-text"><span class="row-label wrap">Délai avant de passer (ms)</span></span>
+          <input type="number" class="input input-num" id="yt-shorts-scroll-delay" min="0" max="10000" step="100">
+        </label>
+      </div>
+    </details>
+
+    <!-- Twitch -->
+    <details class="group" data-group="twitch">
+      <summary>
+        <span class="group-icon"><i data-icon="gift"></i></span>
+        <span class="group-text">
+          <span class="group-title">Twitch</span>
+          <span class="group-desc">Récupération automatique des points de chaîne</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Récupérer les rewards automatiquement</span>
+            <span class="row-desc">Clique sur le coffre dès qu'il apparaît</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="enable-twitch-rewards"><span class="track"></span></span>
+        </label>
+      </div>
+    </details>
+
+    <!-- Vérification d'âge -->
+    <details class="group" data-group="age">
+      <summary>
+        <span class="group-icon"><i data-icon="shield"></i></span>
+        <span class="group-text">
+          <span class="group-title">Vérification d'âge</span>
+          <span class="group-desc">Contourne les murs « contenu sensible »</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text"><span class="row-label">Activer le module</span></span>
+          <span class="switch"><input type="checkbox" id="enable-age-verif-bypass"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/reddit.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Reddit</span><span class="row-desc">Publications NSFW</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-reddit"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/aliexpress.ico" alt=""></span>
+          <span class="row-text"><span class="row-label">AliExpress</span><span class="row-desc">Produits floutés</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-aliexpress"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/bluesky.png" alt=""></span>
+          <span class="row-text"><span class="row-label">Bluesky</span><span class="row-desc">Contenu sensible</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-bsky"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/x.png" alt=""></span>
+          <span class="row-text"><span class="row-label">X / Twitter</span><span class="row-desc">Contenu sensible</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-xcom"><span class="track"></span></span>
+        </label>
+        <label class="row sub avb-sub">
+          <span class="row-text"><span class="row-label wrap">Pastille de statut sur la page X</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-xcom-indicator"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/agechecker.ico" alt=""></span>
+          <span class="row-text"><span class="row-label">AgeChecker.net</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-agechecker"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/agego.ico" alt=""></span>
+          <span class="row-text"><span class="row-label">AgeGO</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-agego"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/ageverif.png" alt=""></span>
+          <span class="row-text"><span class="row-label">AgeVerif.com</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-ageverif"><span class="track"></span></span>
+        </label>
+        <label class="row avb-sub">
+          <span class="row-icon"><img src="../icons/platforms/veriff.ico" alt=""></span>
+          <span class="row-text"><span class="row-label">Veriff</span></span>
+          <span class="switch"><input type="checkbox" id="enable-avb-veriff"><span class="track"></span></span>
+        </label>
+      </div>
+    </details>
+
+    <!-- Publication X -->
+    <details class="group" data-group="xposter">
+      <summary>
+        <span class="group-icon"><img src="../icons/platforms/x.png" alt=""></span>
+        <span class="group-text">
+          <span class="group-title">Publication X</span>
+          <span class="group-desc">Prépare ou programme des posts depuis un outil local</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text"><span class="row-label">Activer le module</span></span>
+          <span class="switch"><input type="checkbox" id="enable-xposter"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Publication automatique</span>
+            <span class="row-desc">Sinon le post est préparé et le clic final reste à toi</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="xposter-allow-publish"><span class="track"></span></span>
+        </label>
+        <label class="row" for="xposter-schedule-mode">
+          <span class="row-text"><span class="row-label">Programmation</span></span>
+          <select class="select" id="xposter-schedule-mode">
+            <option value="extension">Par l'extension (PC allumé)</option>
+            <option value="x">Par X (même PC éteint)</option>
+          </select>
+        </label>
+        <label class="row" for="xposter-port">
+          <span class="row-text"><span class="row-label">Port du pont local</span></span>
+          <input type="number" class="input input-num" id="xposter-port" min="1024" max="65535">
+        </label>
+        <div class="row stack">
+          <span class="row-label">Jeton</span>
+          <div class="input-row">
+            <input type="text" class="input mono" id="xposter-token" placeholder="obligatoire" readonly spellcheck="false">
+            <button type="button" class="btn btn-sm" id="xposter-generate" title="Générer un nouveau jeton"><i data-icon="key" class="i-sm"></i><span class="label">Générer</span></button>
+            <button type="button" class="btn btn-sm btn-primary" id="xposter-copy" title="Copier le jeton"><i data-icon="copy" class="i-sm"></i><span class="label">Copier</span></button>
           </div>
         </div>
-        <div class="setting-item">
-          <span class="setting-label">Activer la censure</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="censure" name="censure">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="anime">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Boutons de switch d'anime</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">MyAnimeList</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-mal" name="enable-mal">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">AniList</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-anilist" name="enable-anilist">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Désactiver l'animation des boutons</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="disable-switcher-animations" name="disable-switcher-animations">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="platforms">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Plateformes de streaming</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label"><img src="../icons/platforms/voiranime.png" class="platform-icon" alt="">Voiranime</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-voiranime" name="enable-voiranime">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label"><img src="../icons/platforms/crunchyroll.png" class="platform-icon" alt="">Crunchyroll</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-crunchyroll" name="enable-crunchyroll">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label"><img src="../icons/platforms/adkami.png" class="platform-icon" alt="">ADKami</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-adkami" name="enable-adkami">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label"><img src="../icons/platforms/adn.webp" class="platform-icon" alt="">ADN</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-adn" name="enable-adn">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label"><img src="../icons/platforms/gumgum.png" class="platform-icon" alt="">Gum Gum Streaming</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-gumgum" name="enable-gumgum">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="youtube">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <img src="../icons/platforms/youtube.png" class="platform-icon" alt="">
-        <span>YouTube</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Lecture fluide des vidéos</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-yt-smooth-playback" name="enable-yt-smooth-playback">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Auto-scroll des Shorts</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-yt-shorts-autoscroll" name="enable-yt-shorts-autoscroll">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Nombre de replays avant scroll</span>
-          <input type="number" id="yt-shorts-replay-count" name="yt-shorts-replay-count" min="0" max="50" step="1" value="0">
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Délai avant scroll (ms)</span>
-          <input type="number" id="yt-shorts-scroll-delay" name="yt-shorts-scroll-delay" min="0" max="10000" step="100" value="0">
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="features">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Fonctionnalités</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Récupération auto des rewards Twitch</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-twitch-rewards" name="enable-twitch-rewards">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Notifications toast</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-toasts" name="enable-toasts" checked>
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="ageverif">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Bypass vérification d'âge</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Activer le module</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-age-verif-bypass" name="enable-age-verif-bypass">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/reddit.png" class="platform-icon" alt="">Reddit (posts NSFW)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-reddit" name="enable-avb-reddit">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/aliexpress.ico" class="platform-icon" alt="">AliExpress (flou produits)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-aliexpress" name="enable-avb-aliexpress">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/bluesky.png" class="platform-icon" alt="">Bluesky (contenu sensible)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-bsky" name="enable-avb-bsky">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/x.png" class="platform-icon" alt="">X / Twitter (contenu sensible)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-xcom" name="enable-avb-xcom">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub avb-xcom-dep">
-          <span class="setting-label setting-label-nested">Afficher la pastille de statut sur la page X</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-xcom-indicator" name="enable-avb-xcom-indicator">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/agechecker.ico" class="platform-icon" alt="">AgeChecker.net</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-agechecker" name="enable-avb-agechecker">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/agego.ico" class="platform-icon" alt="">AgeGO</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-agego" name="enable-avb-agego">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/ageverif.png" class="platform-icon" alt="">AgeVerif.com</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-ageverif" name="enable-avb-ageverif">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item avb-sub">
-          <span class="setting-label"><img src="../icons/platforms/veriff.ico" class="platform-icon" alt="">Veriff</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-avb-veriff" name="enable-avb-veriff">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="false">
-      <div class="settings-group-header" data-toggle="advanced">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Avancé</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label" title="Affiche les outils de test (testeur de toasts) dans la popup et dans ces paramètres.">Mode développeur</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="developer-mode" name="developer-mode">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="true" id="dev-tools-group" hidden>
-      <div class="settings-group-header" data-toggle="dev">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Outils de développement</span>
-      </div>
-      <div class="settings-group-content" style="display: none;">
-        <div class="dev-tools">
-          <a href="toast-tester.html" class="dev-link">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            Testeur de Toasts
-          </a>
-        </div>
-      </div>
-    </div>
-  
-    <div class="settings-group" data-collapsed="true">
-      <div class="settings-group-header" data-toggle="xposter">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Publication X</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Activer le module</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-xposter" name="enable-xposter">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Autoriser la publication automatique</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="xposter-autoriser-publication" name="xposter-autoriser-publication">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Port du pont local</span>
-          <input type="number" id="xposter-port" name="xposter-port" min="1024" max="65535" style="width:110px">
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Jeton</span>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" id="xposter-token" name="xposter-token" placeholder="obligatoire"
-                   readonly spellcheck="false"
-                   style="width:230px;font-family:Consolas,Menlo,monospace;font-size:12px">
-            <button type="button" class="btn btn-secondary" id="xposter-generer" title="Générer un nouveau jeton">Générer</button>
-            <button type="button" class="btn btn-primary" id="xposter-copier" title="Copier dans le presse-papiers">Copier</button>
-          </div>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Programmation</span>
-          <select id="xposter-mode-programmation" name="xposter-mode-programmation" style="width:230px">
-            <option value="extension">Par l'extension (machine allumée)</option>
-            <option value="x">Par X (part même PC éteint)</option>
-          </select>
-        </div>
-
         <!-- Le garde-fou de compte. Piloter le navigateur, c'est publier
              depuis le compte connecté : sans liste, rien ne le vérifie. -->
-        <div class="setting-item" style="align-items:flex-start;flex-direction:column;gap:8px">
-          <span class="setting-label">Comptes autorisés à publier</span>
-          <div id="xposter-comptes" style="display:flex;flex-direction:column;gap:5px;width:100%"></div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" id="xposter-compte-saisie" placeholder="@pseudo ou identifiant"
-                   spellcheck="false" style="width:190px;font-size:12px">
-            <button type="button" class="btn btn-secondary" id="xposter-compte-ajouter">Ajouter</button>
-            <button type="button" class="btn btn-primary" id="xposter-compte-detecter"
-                    title="Lire le compte connecté dans un onglet X ouvert">Détecter</button>
+        <div class="row stack">
+          <span class="row-label">Comptes autorisés à publier</span>
+          <div class="tag-list" id="xposter-accounts"></div>
+          <div class="input-row">
+            <input type="text" class="input" id="xposter-account-input" placeholder="@pseudo ou identifiant" spellcheck="false">
+            <button type="button" class="btn btn-sm" id="xposter-account-add"><i data-icon="plus" class="i-sm"></i>Ajouter</button>
+            <button type="button" class="btn btn-sm" id="xposter-account-detect" title="Lire le compte connecté dans un onglet X ouvert">Détecter</button>
           </div>
-          <span id="xposter-comptes-note" style="font-size:11px;opacity:.7"></span>
+          <span class="note" id="xposter-accounts-note"></span>
         </div>
+        <div class="row stack">
+          <span class="row-label">Commande du pont</span>
+          <code class="cmd" id="xposter-command"></code>
+        </div>
+      </div>
+    </details>
 
-        <div class="setting-item">
-          <span class="setting-label" style="font-size:12px;opacity:.7">
-            Lance le pont avec&nbsp;: <code id="xposter-commande" style="user-select:all"></code>
+    <!-- Pont navigateur -->
+    <details class="group" data-group="browser-bridge">
+      <summary>
+        <span class="group-icon"><i data-icon="bridge"></i></span>
+        <span class="group-text">
+          <span class="group-title">Pont navigateur</span>
+          <span class="group-desc">Laisse un outil local lire le web, en lecture seule</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Activer le module</span>
+            <span class="row-desc" id="browser-bridge-status"></span>
           </span>
-        </div>
-      </div>
-    </div>
-
-    <div class="settings-group" data-collapsed="true">
-      <div class="settings-group-header" data-toggle="browser-bridge">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        <span>Pont navigateur (lecture)</span>
-      </div>
-      <div class="settings-group-content">
-        <div class="setting-item">
-          <span class="setting-label">Activer le module</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="enable-browser-bridge" name="enable-browser-bridge">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">État</span>
-          <span class="setting-label" id="browser-bridge-status" style="font-size:12px;opacity:.7"></span>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Port du pont local</span>
-          <input type="number" id="browser-bridge-port" name="browser-bridge-port" min="1024" max="65535" style="width:110px">
-        </div>
-        <div class="setting-item">
-          <span class="setting-label">Jeton</span>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" id="browser-bridge-token" name="browser-bridge-token" placeholder="obligatoire"
-                   readonly spellcheck="false"
-                   style="width:230px;font-family:Consolas,Menlo,monospace;font-size:12px">
-            <button type="button" class="btn btn-secondary" id="browser-bridge-generate" title="Générer un nouveau jeton">Générer</button>
-            <button type="button" class="btn btn-primary" id="browser-bridge-copy" title="Copier dans le presse-papiers">Copier</button>
+          <span class="switch"><input type="checkbox" id="enable-browser-bridge"><span class="track"></span></span>
+        </label>
+        <label class="row" for="browser-bridge-port">
+          <span class="row-text"><span class="row-label">Port du pont local</span></span>
+          <input type="number" class="input input-num" id="browser-bridge-port" min="1024" max="65535">
+        </label>
+        <div class="row stack">
+          <span class="row-label">Jeton</span>
+          <div class="input-row">
+            <input type="text" class="input mono" id="browser-bridge-token" placeholder="obligatoire" readonly spellcheck="false">
+            <button type="button" class="btn btn-sm" id="browser-bridge-generate" title="Générer un nouveau jeton"><i data-icon="key" class="i-sm"></i><span class="label">Générer</span></button>
+            <button type="button" class="btn btn-sm btn-primary" id="browser-bridge-copy" title="Copier le jeton"><i data-icon="copy" class="i-sm"></i><span class="label">Copier</span></button>
           </div>
         </div>
-
-        <div class="setting-item">
-          <span class="setting-label">Pastille d'historique sur les pages lues</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="browser-bridge-show-widget" name="browser-bridge-show-widget">
-            <span class="slider"></span>
-          </label>
-        </div>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Pastille d'historique sur les pages lues</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="browser-bridge-show-widget"><span class="track"></span></span>
+        </label>
         <!-- Deux lectures plus indiscrètes, chacune derrière sa case : elles
              exposent les cookies et jetons de session. -->
-        <div class="setting-item">
-          <span class="setting-label" title="Requêtes complètes, console et capture de page entière. Chrome affiche un bandeau pendant l'opération.">Autoriser le débogueur (réseau complet, console, page entière)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="browser-bridge-allow-debugger" name="browser-bridge-allow-debugger">
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="setting-item">
-          <span class="setting-label" title="localStorage, sessionStorage et cookies lisibles par la page.">Autoriser la lecture du stockage (cookies, localStorage)</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="browser-bridge-allow-storage" name="browser-bridge-allow-storage">
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <!-- Les sites que le pont ne doit jamais ouvrir, lire ni lister. -->
-        <div class="setting-item" style="align-items:flex-start;flex-direction:column;gap:8px">
-          <span class="setting-label">Sites bannis</span>
-          <div id="browser-bridge-blocked" style="display:flex;flex-direction:column;gap:3px;width:100%"></div>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="text" id="browser-bridge-blocked-input" placeholder="exemple.fr"
-                   spellcheck="false" style="width:190px;font-size:12px">
-            <button type="button" class="btn btn-secondary" id="browser-bridge-blocked-add">Ajouter</button>
-          </div>
-          <span id="browser-bridge-blocked-note" style="font-size:11px;opacity:.7"></span>
-        </div>
-
-        <div class="setting-item">
-          <span class="setting-label" style="font-size:12px;opacity:.7">
-            Lance le pont avec&nbsp;: <code id="browser-bridge-command" style="user-select:all"></code>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Autoriser le débogueur</span>
+            <span class="row-desc">Réseau complet, console, page entière. Chrome affiche un bandeau pendant l'opération.</span>
           </span>
+          <span class="switch"><input type="checkbox" id="browser-bridge-allow-debugger"><span class="track"></span></span>
+        </label>
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Autoriser la lecture du stockage</span>
+            <span class="row-desc">Cookies, localStorage et sessionStorage lisibles par la page</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="browser-bridge-allow-storage"><span class="track"></span></span>
+        </label>
+        <!-- Les sites que le pont ne doit jamais ouvrir, lire ni lister. -->
+        <div class="row stack">
+          <span class="row-label">Sites bannis</span>
+          <div class="tag-list" id="browser-bridge-blocked"></div>
+          <div class="input-row">
+            <input type="text" class="input" id="browser-bridge-blocked-input" placeholder="exemple.fr" spellcheck="false">
+            <button type="button" class="btn btn-sm" id="browser-bridge-blocked-add"><i data-icon="plus" class="i-sm"></i><span class="label">Ajouter</span></button>
+          </div>
+          <span class="note" id="browser-bridge-blocked-note"></span>
+        </div>
+        <div class="row stack">
+          <span class="row-label">Commande du pont</span>
+          <code class="cmd" id="browser-bridge-command"></code>
         </div>
       </div>
-    </div>
-</div>
+    </details>
 
+    <!-- Avancé -->
+    <details class="group" data-group="advanced">
+      <summary>
+        <span class="group-icon"><i data-icon="sliders"></i></span>
+        <span class="group-text">
+          <span class="group-title">Avancé</span>
+          <span class="group-desc">Mode développeur</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <label class="row">
+          <span class="row-text">
+            <span class="row-label">Mode développeur</span>
+            <span class="row-desc">Affiche les outils de test dans la popup et ci-dessous</span>
+          </span>
+          <span class="switch"><input type="checkbox" id="developer-mode"><span class="track"></span></span>
+        </label>
+      </div>
+    </details>
+
+    <details class="group" data-group="dev-tools" id="dev-tools-group" hidden>
+      <summary>
+        <span class="group-icon"><i data-icon="code"></i></span>
+        <span class="group-text">
+          <span class="group-title">Outils de développement</span>
+          <span class="group-desc">Visibles en mode développeur</span>
+        </span>
+        <i data-icon="chevron-right" class="chevron"></i>
+      </summary>
+      <div class="group-body rows">
+        <a href="toast-tester.html" class="row">
+          <span class="row-icon"><i data-icon="bell"></i></span>
+          <span class="row-text">
+            <span class="row-label">Testeur de toasts</span>
+            <span class="row-desc">Envoie une notification d'essai sur l'onglet actif</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </a>
+      </div>
+    </details>
+  </div>
+
+  <script src="ui.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

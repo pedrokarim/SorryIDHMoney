@@ -1,225 +1,214 @@
 /*
- * xposter.js — Ecran dedie au module de publication X.
+ * xposter.js – Écran dédié au module de publication X.
  *
- * Il ne pilote rien : il lit l'etat que le service worker entretient dans le
- * stockage local et le rend lisible. La seule action offerte est la capture
- * d'ecran, et l'annulation d'une publication qui n'est pas encore partie.
+ * Il ne pilote rien : il lit l'état que le service worker entretient dans le
+ * stockage local et le rend lisible. Les seules actions offertes sont la
+ * capture d'écran, l'annulation d'une publication pas encore partie et la
+ * relance d'une publication passée.
+ *
+ * Les champs des publications (`etat`, `quand`, `texte`, `rapport`…) et les
+ * noms d'action (`xposterAnnuler`…) sont ceux du module XPoster : ils
+ * franchissent la frontière avec le service worker et l'outil local.
  */
 
-const DELAI_PERTE = 150000; // deux tours de sonde, plus une marge
+const LOST_AFTER_MS = 150000; // deux tours de sonde, plus une marge
 
-const ETATS = {
-  'en attente': ['attente', 'programmée'],
+const STATES = {
+  'en attente': ['warn', 'programmée'],
   prepare: ['ok', 'préparée'],
   publie: ['ok', 'publiée'],
   echec: ['err', 'échec'],
   manquee: ['err', 'manquée'],
-  'confie a X': ['ok', 'programmée chez X'],
+  'confie a X': ['ok', 'chez X'],
 };
 
-const el = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
+const { el, flash } = window.UI;
 
-const quand = (ms) => {
-  if (!ms) return '—';
+const formatWhen = (ms) => {
+  if (!ms) return '–';
   const d = new Date(ms);
   return d.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' }) +
-         ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    ' à ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
 
-/** « Dans 3 h », « il y a 12 min » — plus parlant qu'un horodatage brut. */
-function relatif(ms) {
+/** « Dans 3 h », « il y a 12 min » : plus parlant qu'un horodatage brut. */
+function relative(ms) {
   const delta = ms - Date.now();
-  const abs = Math.abs(delta);
-  const min = Math.round(abs / 60000);
-  if (min < 1) return delta >= 0 ? 'imminent' : "à l'instant";
-  const texte = min < 60 ? `${min} min` : `${Math.round(min / 60)} h`;
-  return delta >= 0 ? `dans ${texte}` : `il y a ${texte}`;
+  const minutes = Math.round(Math.abs(delta) / 60000);
+  if (minutes < 1) return delta >= 0 ? 'imminent' : "à l'instant";
+  const span = minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`;
+  return delta >= 0 ? `dans ${span}` : `il y a ${span}`;
 }
 
-function carte(p) {
-  const [classe, libelle] = ETATS[p.etat] || ['attente', p.etat || '—'];
-  const div = document.createElement('div');
-  div.className = 'xp-item';
+function postRow(post) {
+  const [kind, label] = STATES[post.etat] || ['', post.etat || '–'];
+  const row = el('div', 'row post-row');
 
-  // Une entree en attente porte encore ses octets ; une entree passee n'a
+  // Une entrée en attente porte encore ses octets ; une entrée passée n'a
   // plus que leur compte.
-  const nbImages = (p.images || []).length || p.nbImages || 0;
-  const date = p.etat === 'en attente' ? p.quand : (p.execute || p.quand);
-
+  const imageCount = (post.images || []).length || post.nbImages || 0;
+  const date = post.etat === 'en attente' ? post.quand : (post.execute || post.quand);
   const meta = [
-    quand(date),
-    `(${relatif(date)})`,
-    nbImages ? `${nbImages} image${nbImages > 1 ? 's' : ''}` : 'sans image',
-    p.publier ? 'publication demandée' : 'préparation seule',
+    `${formatWhen(date)} (${relative(date)})`,
+    imageCount ? `${imageCount} image${imageCount > 1 ? 's' : ''}` : 'sans image',
+    post.publier ? 'publication demandée' : 'préparation seule',
   ].join(' · ');
 
-  div.innerHTML =
-    `<span class="xp-etat ${classe}">${libelle}</span>` +
-    `<div class="xp-corps">` +
-      `<div class="xp-texte"></div>` +
-      `<div class="xp-meta">${meta}</div>` +
-      (p.rapport?.erreur ? `<div class="xp-erreur"></div>` : '') +
-    `</div>`;
+  const text = el('div', 'row-text');
+  // textContent : le texte vient d'un fichier local, rien ne justifie de
+  // l'interpréter comme du HTML.
+  text.append(el('div', 'post-text', post.texte || '(sans texte)'), el('div', 'row-desc', meta));
+  if (post.rapport?.erreur) text.appendChild(el('div', 'post-error', post.rapport.erreur));
 
-  // Texte insere via textContent : il vient d'un fichier local, mais rien ne
-  // justifie de l'interpreter comme du HTML.
-  div.querySelector('.xp-texte').textContent = p.texte || '(sans texte)';
-  if (p.rapport?.erreur) div.querySelector('.xp-erreur').textContent = p.rapport.erreur;
+  row.append(el('span', 'badge ' + kind, label), text);
 
-  if (p.etat === 'en attente') {
-    const annuler = document.createElement('button');
-    annuler.className = 'xp-btn';
-    annuler.textContent = 'Annuler';
-    annuler.addEventListener('click', async () => {
-      annuler.disabled = true;
-      await chrome.runtime.sendMessage({ action: 'xposterAnnuler', id: p.id });
-      rafraichir();
+  if (post.etat === 'en attente') {
+    const cancel = el('button', 'btn btn-sm', 'Annuler');
+    cancel.type = 'button';
+    cancel.addEventListener('click', async () => {
+      cancel.disabled = true;
+      await chrome.runtime.sendMessage({ action: 'xposterAnnuler', id: post.id });
+      refresh();
     });
-    div.appendChild(annuler);
+    row.appendChild(cancel);
   } else {
     /*
-     * Une composition peut partir de travers sans que rien n'ait echoue : le
-     * navigateur etait sur un autre compte, une image n'a pas suivi. Le
-     * rapport dit « preparee », et pourtant c'est a refaire.
+     * Une composition peut partir de travers sans que rien n'ait échoué : le
+     * navigateur était sur un autre compte, une image n'a pas suivi. Le
+     * rapport dit « préparée », et pourtant c'est à refaire.
      */
-    const octetsPerdus = !(p.images || []).length && p.nbImages > 0;
-    const relancer = document.createElement('button');
-    relancer.className = 'xp-btn';
-    relancer.textContent = 'Relancer';
-    relancer.disabled = octetsPerdus;
-    relancer.title = octetsPerdus
-      ? "Images purgées de l'historique — à redéposer depuis l'outil"
+    const bytesLost = !(post.images || []).length && post.nbImages > 0;
+    const replay = el('button', 'btn btn-sm', 'Relancer');
+    replay.type = 'button';
+    replay.disabled = bytesLost;
+    replay.title = bytesLost
+      ? "Images purgées de l'historique – à redéposer depuis l'outil"
       : 'Rouvrir le composeur avec cette publication';
-
-    relancer.addEventListener('click', async () => {
-      relancer.disabled = true;
-      relancer.textContent = 'Relance…';
-      const r = await chrome.runtime.sendMessage({ action: 'xposterRelancer', id: p.id });
+    replay.addEventListener('click', async () => {
+      replay.disabled = true;
+      replay.textContent = 'Relance…';
+      const r = await chrome.runtime.sendMessage({ action: 'xposterRelancer', id: post.id });
       if (!r?.ok) {
-        relancer.textContent = 'Échec';
+        replay.textContent = 'Échec';
         console.error('[XPoster]', r?.erreur);
       }
-      rafraichir();
+      refresh();
     });
-    div.appendChild(relancer);
+    row.appendChild(replay);
   }
-
-  return div;
+  return row;
 }
 
-function remplir(conteneur, entrees, vide) {
-  conteneur.innerHTML = '';
-  if (!entrees.length) {
-    const p = document.createElement('p');
-    p.className = 'xp-vide';
-    p.textContent = vide;
-    conteneur.appendChild(p);
+function fill(container, posts, emptyText) {
+  if (!posts.length) {
+    container.replaceChildren(el('div', 'empty', emptyText));
     return;
   }
-  entrees.forEach((e) => conteneur.appendChild(carte(e)));
+  container.replaceChildren(...posts.map(postRow));
 }
 
-function rendre(cfg, local, composeurs) {
+function render(cfg, local, composers) {
   const contact = local.xposterDernierContact || 0;
-  const vivant = Date.now() - contact < DELAI_PERTE;
+  const alive = Date.now() - contact < LOST_AFTER_MS;
+  $('xp-dot').className = 'dot ' + (cfg.enableXPoster && cfg.xposterToken ? (alive ? 'ok' : 'err') : '');
 
-  el('xp-pastille').className = 'xp-pastille ' + (vivant ? 'vivant' : 'mort');
-
+  let title;
+  let detail;
   if (!cfg.enableXPoster) {
-    el('xp-pont-titre').textContent = 'Module désactivé';
-    el('xp-pont-detail').textContent = 'À cocher dans les paramètres.';
+    title = 'Module désactivé';
+    detail = 'À cocher dans les paramètres.';
   } else if (!cfg.xposterToken) {
-    el('xp-pont-titre').textContent = 'Aucun jeton';
-    el('xp-pont-detail').textContent = 'Génère-le dans les paramètres.';
-  } else if (vivant) {
-    el('xp-pont-titre').textContent = 'Pont connecté';
-    el('xp-pont-detail').textContent = `port ${cfg.xposterPort} · dernier échange ${relatif(contact)}`;
+    title = 'Aucun jeton';
+    detail = 'Génère-le dans les paramètres.';
+  } else if (alive) {
+    title = 'Pont connecté';
+    detail = `Port ${cfg.xposterPort} · dernier échange ${relative(contact)}`;
   } else {
-    el('xp-pont-titre').textContent = 'Pont absent';
-    el('xp-pont-detail').textContent = contact
-      ? `dernier échange ${relatif(contact)} — le serveur local tourne-t-il ?`
-      : 'jamais connecté — lance le serveur local.';
+    title = 'Pont absent';
+    detail = contact
+      ? `Dernier échange ${relative(contact)} – le serveur local tourne-t-il ?`
+      : 'Jamais connecté – lance le serveur local.';
   }
+  $('xp-bridge-title').textContent = title;
+  $('xp-bridge-detail').textContent = detail;
 
   /*
    * La capture ne passe pas par le pont : c'est le navigateur qui photographie
-   * son propre onglet. Ce qu'il lui faut, c'est un composeur ouvert — la lier
-   * a l'etat du serveur local grisait un bouton parfaitement utilisable.
+   * son propre onglet. Ce qu'il lui faut, c'est un composeur ouvert.
    */
-  const bouton = el('xp-capturer');
-  bouton.disabled = composeurs.length === 0;
-  bouton.title = composeurs.length
-    ? "Photographier le composeur X"
-    : "Aucun composeur X ouvert";
+  const capture = $('xp-capture');
+  if (!capture.dataset.busy) capture.disabled = composers.length === 0;
+  capture.title = composers.length ? 'Photographier le composeur X' : 'Aucun composeur X ouvert';
 
-  const file = local.xposterFile || [];
-  const attente = file.filter((p) => p.etat === 'en attente').sort((a, b) => a.quand - b.quand);
-  const finies = file.filter((p) => p.etat !== 'en attente').sort((a, b) => (b.execute || 0) - (a.execute || 0));
+  const queue = local.xposterFile || [];
+  const waiting = queue.filter((p) => p.etat === 'en attente').sort((a, b) => a.quand - b.quand);
+  const done = queue.filter((p) => p.etat !== 'en attente').sort((a, b) => (b.execute || 0) - (a.execute || 0));
 
-  el('xp-n-attente').textContent = attente.length;
-  el('xp-n-ok').textContent = finies.filter((p) => p.etat === 'prepare' || p.etat === 'publie').length;
-  // Une echeance manquee compte parmi les ratees : elle n a rien produit.
-  el('xp-n-echec').textContent = finies.filter((p) => p.etat === 'echec' || p.etat === 'manquee').length;
+  $('xp-n-waiting').textContent = waiting.length;
+  $('xp-n-ok').textContent = done.filter((p) => p.etat === 'prepare' || p.etat === 'publie').length;
+  // Une échéance manquée compte parmi les ratées : elle n'a rien produit.
+  $('xp-n-failed').textContent = done.filter((p) => p.etat === 'echec' || p.etat === 'manquee').length;
 
-  remplir(el('xp-attente'), attente, 'Rien de programmé.');
-  remplir(el('xp-historique'), finies, 'Rien encore.');
+  fill($('xp-waiting'), waiting, 'Rien de programmé.');
+  fill($('xp-history'), done, 'Rien encore.');
 
-  el('xp-note').textContent =
+  $('xp-note').textContent =
     "La file vit dans l'extension : une publication programmée part même si le serveur local est éteint, tant que le navigateur tourne. " +
     (cfg.xposterAutoriserPublication
       ? 'La publication automatique est autorisée.'
       : 'La publication automatique est refusée : les demandes sont préparées, le clic final reste à toi.');
 }
 
-function rafraichir() {
+function refresh() {
   chrome.storage.sync.get(
     { enableXPoster: false, xposterToken: '', xposterPort: 8787, xposterAutoriserPublication: false },
     (cfg) => {
       chrome.storage.local.get({ xposterDernierContact: 0, xposterFile: [] }, async (local) => {
-        const composeurs = await chrome.tabs.query({
+        const composers = await chrome.tabs.query({
           url: ['https://x.com/compose/post*', 'https://twitter.com/compose/post*'],
         });
-        rendre(cfg, local, composeurs);
+        render(cfg, local, composers);
       });
     }
   );
 }
 
-el('xp-capturer').addEventListener('click', async function () {
+$('xp-capture').addEventListener('click', async function () {
   this.disabled = true;
-  const avant = this.textContent;
-  this.textContent = 'Capture…';
+  this.dataset.busy = '1';
+  flash(this, 'Capture…', 15000);
   try {
     /*
      * C'est le service worker qui photographie, pas cette page : au moment du
-     * clic, l'onglet actif est celui-ci. Lui seul peut designer le composeur
+     * clic, l'onglet actif est celui-ci. Lui seul peut désigner le composeur
      * et le ramener au premier plan.
      */
     const r = await chrome.runtime.sendMessage({ action: 'xposterCapturer' });
     if (!r || !r.ok) throw new Error(r && r.erreur ? r.erreur : 'capture refusée');
 
-    el('xp-cliche-img').src = r.dataUrl;
-    el('xp-cliche-quand').textContent = new Date().toLocaleTimeString('fr-FR');
-    // Un onglet ne peut pas naviguer vers une data: URL — le lien passe donc
+    $('xp-snapshot-img').src = r.dataUrl;
+    $('xp-snapshot-time').textContent = 'Capturé à ' + new Date().toLocaleTimeString('fr-FR');
+    // Un onglet ne peut pas naviguer vers une data: URL : le lien passe donc
     // par un blob, qui lui s'ouvre.
     const blob = await (await fetch(r.dataUrl)).blob();
-    const lien = el('xp-cliche-lien');
-    if (lien.dataset.url) URL.revokeObjectURL(lien.dataset.url);
-    lien.href = lien.dataset.url = URL.createObjectURL(blob);
-    el('xp-cliche').hidden = false;
-    this.textContent = avant;
+    const link = $('xp-snapshot-link');
+    if (link.dataset.url) URL.revokeObjectURL(link.dataset.url);
+    link.href = link.dataset.url = URL.createObjectURL(blob);
+    $('xp-snapshot').hidden = false;
+    flash(this, 'Capturé');
   } catch (err) {
     console.error('[XPoster]', err);
-    this.textContent = 'Échec';
-    setTimeout(() => { this.textContent = avant; }, 1600);
+    flash(this, 'Échec', 1600);
   }
+  delete this.dataset.busy;
   this.disabled = false;
 });
 
-el('xp-cliche-fermer').addEventListener('click', () => {
-  el('xp-cliche').hidden = true;
+$('xp-snapshot-close').addEventListener('click', () => {
+  $('xp-snapshot').hidden = true;
 });
 
-rafraichir();
-setInterval(rafraichir, 3000);
-chrome.storage.onChanged.addListener(rafraichir);
+refresh();
+setInterval(refresh, 3000);
+chrome.storage.onChanged.addListener(refresh);

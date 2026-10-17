@@ -4,93 +4,129 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SorryIDHMoney</title>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="../styles/base.css">
   <link rel="stylesheet" href="../styles/popup.css">
 </head>
 <body>
-  <div class="popup">
-    <div class="popup-header">
-      <h1 id="extension-name">SorryIDHMoney</h1>
-      <span class="version" id="extension-version">1.0</span>
-    </div>
-
-    <div class="xcom-status" id="xcom-status" style="display:none">
-      <div class="xcom-status-head">
-        <img class="xcom-status-icon" src="../icons/platforms/x.png" alt="">
-        <span class="xcom-status-title">X / Twitter — Bypass</span>
-        <span class="status-badge gray" id="xcom-status-badge">…</span>
+  <div class="app">
+    <header class="app-header">
+      <img class="brand-mark" src="../icons/brand/icon.svg" alt="">
+      <div class="app-header-title">
+        <h1 class="brand-word">Sorry<span class="light">IDH</span>Money</h1>
+        <span class="subtitle" id="extension-version">Euhh ! On a pas beaucoup d'argent ^^</span>
       </div>
-      <ul class="xcom-hooks" id="xcom-hooks"></ul>
-    </div>
+      <a class="icon-btn" href="options.html" title="Paramètres" aria-label="Paramètres"><i data-icon="settings"></i></a>
+    </header>
 
-    <div class="xcom-status" id="xposter-panneau" style="display:none">
-      <div class="xcom-status-head">
-        <img class="xcom-status-icon" src="../icons/platforms/x.png" alt="">
-        <span class="xcom-status-title">Publication X</span>
-        <span class="status-badge gray" id="xposter-badge">…</span>
+    <!-- Ce qui concerne l'onglet ouvert : n'apparaît que s'il y a quelque chose à y faire. -->
+    <section class="section" id="tab-section" hidden>
+      <div class="section-head">
+        <span class="section-title">Sur cet onglet</span>
+        <span class="count truncate" id="tab-host"></span>
       </div>
-      <div id="xposter-resume" style="font-size:11px;opacity:.75;margin:6px 0 4px"></div>
-      <ul class="xcom-hooks" id="xposter-historique"></ul>
-    </div>
 
-    <div class="xcom-status" id="browser-bridge-panel" style="display:none">
-      <div class="xcom-status-head">
-        <svg class="xcom-status-icon" viewBox="0 0 24 24" fill="none" stroke="#805ad5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18M6 17v-7M18 17v-7M3 8c4 6 14 6 18 0"/></svg>
-        <span class="xcom-status-title">Pont navigateur</span>
-        <span class="status-badge gray" id="browser-bridge-badge">…</span>
+      <div class="card rows" id="platform-card" hidden>
+        <div class="row">
+          <span class="row-icon"><img id="platform-icon" src="" alt=""></span>
+          <span class="row-text">
+            <span class="row-label" id="platform-name"></span>
+            <span class="row-desc">Boutons MyAnimeList, AniList et fiche détaillée</span>
+          </span>
+          <span class="badge" id="platform-state"></span>
+        </div>
+        <button type="button" class="row" id="toggle-edit-mode">
+          <span class="row-icon gold"><i data-icon="pencil"></i></span>
+          <span class="row-text">
+            <span class="row-label">Corriger la fiche liée</span>
+            <span class="row-desc">Choisir la bonne fiche si l'anime a été mal reconnu</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </button>
       </div>
-      <div id="browser-bridge-summary" style="font-size:11px;opacity:.75;margin:6px 0 4px"></div>
-      <ul class="xcom-hooks" id="browser-bridge-recent"></ul>
-    </div>
 
-    <div class="nav-list">
-      <a href="twitch-stats.html" class="nav-item">
-        <span class="icon icon-stats"></span>
-        <span>Statistiques Twitch</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </a>
-      <a href="xposter.html" class="nav-item" id="nav-xposter" style="display:none">
-        <img class="xcom-status-icon" src="../icons/platforms/x.png" alt="">
-        <span>Publication X</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </a>
-      <a href="browser-bridge.html" class="nav-item" id="nav-browser-bridge" style="display:none">
-        <svg class="xcom-status-icon" viewBox="0 0 24 24" fill="none" stroke="#805ad5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17h18M6 17v-7M18 17v-7M3 8c4 6 14 6 18 0"/></svg>
-        <span>Pont navigateur</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </a>
-      <a href="anime-manager.html" class="nav-item">
-        <span class="icon icon-anime"></span>
-        <span>Gestionnaire d'Animes</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </a>
-    </div>
+      <div class="card" id="xcom-status" hidden>
+        <div class="status">
+          <span class="row-icon"><img src="../icons/platforms/x.png" alt=""></span>
+          <span class="status-text">
+            <strong>Contenu sensible sur X</strong>
+            <span id="xcom-detail">…</span>
+          </span>
+          <span class="badge" id="xcom-badge">…</span>
+        </div>
+        <ul class="mini-list" id="xcom-hooks"></ul>
+      </div>
+    </section>
 
-    <button id="toggle-edit-mode" class="edit-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      <span>Mode édition</span>
-    </button>
+    <!-- Modules à état : visibles seulement s'ils sont activés. -->
+    <section class="section" id="xposter-panel" hidden>
+      <div class="section-head">
+        <span class="section-title">Publication X</span>
+        <span class="badge" id="xposter-badge">…</span>
+      </div>
+      <a class="card module-card" href="xposter.html">
+        <span class="note" id="xposter-summary"></span>
+        <ul class="mini-list" id="xposter-recent"></ul>
+      </a>
+    </section>
 
-    <div class="nav-list secondary">
-      <a href="options.html" class="nav-item">
-        <span class="icon icon-settings"></span>
-        <span>Paramètres</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    <section class="section" id="browser-bridge-panel" hidden>
+      <div class="section-head">
+        <span class="section-title">Pont navigateur</span>
+        <span class="badge" id="browser-bridge-badge">…</span>
+      </div>
+      <a class="card module-card" href="browser-bridge.html">
+        <span class="note" id="browser-bridge-summary"></span>
+        <ul class="mini-list" id="browser-bridge-recent"></ul>
       </a>
-      <a href="about.html" class="nav-item">
-        <span class="icon icon-info"></span>
-        <span>À propos</span>
-        <svg class="nav-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-      </a>
-    </div>
+    </section>
 
-    <div class="dev-section" id="dev-section" style="display:none">
-      <a href="toast-tester.html" class="dev-link">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        Testeur de Toasts
-      </a>
-    </div>
+    <section class="section">
+      <div class="section-head"><span class="section-title">Outils</span></div>
+      <nav class="card rows">
+        <a href="anime-manager.html" class="row">
+          <span class="row-icon"><i data-icon="film"></i></span>
+          <span class="row-text">
+            <span class="row-label">Gestionnaire d'animes</span>
+            <span class="row-desc">Fiches corrigées et animes ignorés</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </a>
+        <a href="twitch-stats.html" class="row">
+          <span class="row-icon"><i data-icon="gift"></i></span>
+          <span class="row-text">
+            <span class="row-label">Récompenses Twitch</span>
+            <span class="row-desc" id="twitch-summary">Points de chaîne récupérés</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </a>
+        <a href="xposter.html" class="row" id="nav-xposter" hidden>
+          <span class="row-icon"><img src="../icons/platforms/x.png" alt=""></span>
+          <span class="row-text">
+            <span class="row-label">Publication X</span>
+            <span class="row-desc">File et historique des publications</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </a>
+        <a href="browser-bridge.html" class="row" id="nav-browser-bridge" hidden>
+          <span class="row-icon"><i data-icon="bridge"></i></span>
+          <span class="row-text">
+            <span class="row-label">Pont navigateur</span>
+            <span class="row-desc">Journal des lectures</span>
+          </span>
+          <i data-icon="chevron-right" class="chevron"></i>
+        </a>
+      </nav>
+    </section>
+
+    <footer class="popup-footer">
+      <a href="about.html" class="btn btn-ghost btn-sm"><i data-icon="info" class="i-sm"></i>À propos</a>
+      <a href="toast-tester.html" class="btn btn-ghost btn-sm" id="dev-link" hidden><i data-icon="code" class="i-sm"></i>Testeur de toasts</a>
+      <span class="version" id="version-tag"></span>
+    </footer>
   </div>
 
+  <script src="ui.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

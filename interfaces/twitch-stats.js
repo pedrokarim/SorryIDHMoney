@@ -1,153 +1,112 @@
-const ITEMS_PER_PAGE = 15;
-let currentPage = 1;
-let allChannels = [];
-let searchTerm = '';
+/*
+ * Récompenses Twitch : lit directement les statistiques que le content script
+ * tient dans `chrome.storage.local`. Plus besoin d'être sur un onglet Twitch
+ * pour les consulter.
+ */
 
-function formatNumber(num) {
-    return new Intl.NumberFormat('fr-FR').format(num);
+const { el, pager, formatNumber, setStat, flash } = window.UI;
+const PAGE_SIZE = 15;
+const EMPTY_STATS = { clickCount: 0, pointsCollected: 0, lastUpdate: 0, channelStats: {} };
+
+const $ = (id) => document.getElementById(id);
+const state = { channels: [], search: '', page: 1 };
+
+function formatDate(ms) {
+  return new Date(ms).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-function formatDate(timestamp) {
-    return new Date(timestamp).toLocaleString('fr-FR', {
-        dateStyle: 'short',
-        timeStyle: 'short'
-    });
-}
+function render(stats) {
+  setStat($('points-collected'), stats.pointsCollected);
+  setStat($('click-count'), stats.clickCount);
+  $('last-update').textContent = stats.lastUpdate && stats.clickCount
+    ? `Dernier coffre le ${formatDate(stats.lastUpdate)}`
+    : 'Aucun coffre ouvert pour l’instant';
 
-function getFilteredChannels() {
-    if (!searchTerm) return allChannels;
-    const term = searchTerm.toLowerCase();
-    return allChannels.filter(([name]) => name.toLowerCase().includes(term));
+  // Classement par points, du plus généreux au moins généreux.
+  state.channels = Object.entries(stats.channelStats || {})
+    .sort((a, b) => (b[1].pointsCollected || 0) - (a[1].pointsCollected || 0));
+  setStat($('channel-total'), state.channels.length);
+  renderChannels();
 }
 
 function renderChannels() {
-    const container = document.getElementById('channel-stats');
-    const emptyMsg = document.getElementById('empty-message');
-    const filtered = getFilteredChannels();
+  const list = $('channel-list');
+  const term = state.search.toLowerCase();
+  const ranked = state.channels.map((entry, index) => [index + 1, ...entry]);
+  const visible = term ? ranked.filter(([, name]) => name.toLowerCase().includes(term)) : ranked;
+  $('channel-count').textContent = visible.length ? formatNumber(visible.length) : '';
 
-    container.innerHTML = '';
+  if (!visible.length) {
+    const box = el('div', 'empty');
+    const img = el('img');
+    img.src = '../icons/brand/symbol.svg';
+    img.alt = '';
+    box.append(img,
+      el('strong', '', term ? 'Aucune chaîne trouvée' : 'Aucune chaîne pour l’instant'),
+      el('span', '', term ? 'Rien ne correspond à cette recherche.' : 'Les points apparaîtront ici dès le premier coffre ouvert sur Twitch.'));
+    list.replaceChildren(box);
+    pager($('pager'), 1, 1, () => {});
+    return;
+  }
 
-    if (filtered.length === 0) {
-        emptyMsg.style.display = '';
-        emptyMsg.textContent = searchTerm ? 'Aucune chaîne trouvée.' : 'Aucune chaîne visitée.';
-        renderPagination(0);
-        return;
-    }
+  const pages = Math.ceil(visible.length / PAGE_SIZE);
+  state.page = Math.min(state.page, pages);
+  const start = (state.page - 1) * PAGE_SIZE;
 
-    emptyMsg.style.display = 'none';
+  list.replaceChildren(...visible.slice(start, start + PAGE_SIZE).map(([rank, name, data]) => {
+    const row = el('a', 'row');
+    row.href = `https://www.twitch.tv/${encodeURIComponent(name)}`;
+    row.target = '_blank';
+    row.rel = 'noopener noreferrer';
+    const text = el('span', 'row-text');
+    const label = el('span', 'row-label', name);
+    label.title = name;
+    text.append(
+      label,
+      el('span', 'row-desc', `${formatNumber(data.clickCount)} coffre(s) · ${formatDate(data.lastUpdate)}`),
+    );
+    row.append(el('span', 'rank', String(rank)), text, el('span', 'points', `${formatNumber(data.pointsCollected)} pts`));
+    return row;
+  }));
 
-    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-    if (currentPage > totalPages) currentPage = totalPages;
-
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const pageItems = filtered.slice(start, start + ITEMS_PER_PAGE);
-
-    pageItems.forEach(([channelName, channelData]) => {
-        const el = document.createElement('div');
-        el.className = 'channel-item';
-        el.innerHTML = `
-            <div class="channel-item-info">
-                <div class="channel-item-name">${channelName}</div>
-                <div class="channel-item-details">
-                    ${formatNumber(channelData.clickCount)} clics · ${formatNumber(channelData.pointsCollected)} pts · ${formatDate(channelData.lastUpdate)}
-                </div>
-            </div>
-        `;
-        container.appendChild(el);
-    });
-
-    renderPagination(filtered.length);
-
-    // Compteur
-    const countEl = document.getElementById('channel-count');
-    if (countEl) {
-        countEl.textContent = `(${filtered.length})`;
-    }
+  pager($('pager'), state.page, pages, (p) => { state.page = p; renderChannels(); });
 }
 
-function renderPagination(totalItems) {
-    const container = document.getElementById('pagination');
-    container.innerHTML = '';
-
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-    if (totalPages <= 1) return;
-
-    // Prev
-    const prevBtn = document.createElement('button');
-    prevBtn.className = 'page-btn';
-    prevBtn.innerHTML = '‹';
-    prevBtn.disabled = currentPage === 1;
-    prevBtn.addEventListener('click', () => { currentPage--; renderChannels(); });
-    container.appendChild(prevBtn);
-
-    // Pages
-    const maxVisible = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage < maxVisible - 1) {
-        startPage = Math.max(1, endPage - maxVisible + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-        const btn = document.createElement('button');
-        btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
-        btn.textContent = i;
-        btn.addEventListener('click', () => { currentPage = i; renderChannels(); });
-        container.appendChild(btn);
-    }
-
-    // Next
-    const nextBtn = document.createElement('button');
-    nextBtn.className = 'page-btn';
-    nextBtn.innerHTML = '›';
-    nextBtn.disabled = currentPage === totalPages;
-    nextBtn.addEventListener('click', () => { currentPage++; renderChannels(); });
-    container.appendChild(nextBtn);
+function refresh() {
+  chrome.storage.local.get({ twitchRewardStats: EMPTY_STATS }, ({ twitchRewardStats }) => {
+    render({ ...EMPTY_STATS, ...twitchRewardStats });
+  });
+  chrome.storage.sync.get({ enableTwitchRewards: true }, ({ enableTwitchRewards }) => {
+    $('rewards-state').textContent = enableTwitchRewards
+      ? 'Récupération automatique active.'
+      : 'Récupération automatique coupée dans les paramètres.';
+  });
 }
 
-function updateStats() {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        if (tabs[0].url.includes('twitch.tv')) {
-            chrome.tabs.sendMessage(tabs[0].id, { action: "getTwitchStats" }, function (response) {
-                if (response) {
-                    document.getElementById('click-count').textContent = formatNumber(response.clickCount);
-                    document.getElementById('points-collected').textContent = formatNumber(response.pointsCollected);
-                    document.getElementById('last-update').textContent =
-                        `Dernière mise à jour : ${formatDate(response.lastUpdate)}`;
-
-                    allChannels = Object.entries(response.channelStats || {})
-                        .sort((a, b) => b[1].lastUpdate - a[1].lastUpdate);
-
-                    renderChannels();
-                }
-            });
-        } else {
-            document.body.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 13px;">Veuillez vous rendre sur Twitch pour voir les statistiques.</div>';
-        }
-    });
-}
-
-// Search
-document.getElementById('search-input').addEventListener('input', function (e) {
-    searchTerm = e.target.value.trim();
-    currentPage = 1;
-    renderChannels();
+$('search-input').addEventListener('input', (e) => {
+  state.search = e.target.value.trim();
+  state.page = 1;
+  renderChannels();
 });
 
-// Reset
-document.getElementById('reset-stats').addEventListener('click', function () {
-    const stats = {
-        clickCount: 0,
-        pointsCollected: 0,
-        lastUpdate: Date.now(),
-        channelStats: {}
-    };
+/* Réinitialiser demande deux clics : le premier transforme le bouton en question. */
+(function setupReset() {
+  const button = $('reset-stats');
+  let armed = null;
+  button.addEventListener('click', () => {
+    if (!armed) {
+      flash(button, 'Tout effacer ?', 3000);
+      armed = setTimeout(() => { armed = null; }, 3000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    flash(button, 'Effacé');
+    chrome.storage.local.set({ twitchRewardStats: { ...EMPTY_STATS, lastUpdate: Date.now() } });
+  });
+})();
 
-    chrome.storage.local.set({ twitchRewardStats: stats }, function () {
-        updateStats();
-    });
+chrome.storage.onChanged.addListener((changes, zone) => {
+  if ((zone === 'local' && changes.twitchRewardStats) || (zone === 'sync' && changes.enableTwitchRewards)) refresh();
 });
-
-// Init + refresh
-updateStats();
-setInterval(updateStats, 5000);
+refresh();

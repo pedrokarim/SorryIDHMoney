@@ -1,160 +1,74 @@
-document.addEventListener('DOMContentLoaded', function () {
-    try {
-        const manifest = chrome.runtime.getManifest();
+const $ = (id) => document.getElementById(id);
+const { el, icon, setStat, flash } = window.UI;
 
-        document.getElementById('extension-name').textContent = manifest.name;
-        document.title = `À propos de ${manifest.name}`;
-        document.getElementById('extension-version').textContent = manifest.version;
+/* Libellés lisibles des permissions du manifeste. */
+const PERMISSION_LABELS = {
+  storage: ['database', 'Enregistrer les réglages et le cache'],
+  unlimitedStorage: ['database', 'Stockage local sans limite de taille'],
+  activeTab: ['link', "Agir sur l'onglet ouvert à la demande"],
+  scripting: ['code', 'Ajouter les boutons sur les sites'],
+  declarativeNetRequest: ['shield', 'Contourner les vérifications d’âge'],
+  alarms: ['clock', 'Programmer les publications'],
+  tabs: ['list', 'Lire l’adresse des onglets'],
+  debugger: ['wrench', 'Débogueur du pont navigateur (si autorisé)'],
+};
 
-        const descriptionElement = document.getElementById('extension-description');
-        if (descriptionElement && manifest.description) {
-            descriptionElement.textContent = manifest.description;
-        }
+const manifest = chrome.runtime.getManifest();
+$('extension-version').textContent = 'v' + manifest.version;
+if (manifest.author) $('extension-author').textContent = manifest.author;
+$('current-year').textContent = new Date().getFullYear();
 
-        // Permissions
-        const permissionsList = document.getElementById('permissions-list');
-        if (permissionsList && manifest.permissions && manifest.permissions.length > 0) {
-            manifest.permissions.forEach(permission => {
-                let formatted = permission;
-                if (permission === "storage") formatted = "Stockage local de données";
-                else if (permission === "tabs") formatted = "Gestion des onglets";
-                else if (permission.includes("://")) formatted = `Accès au site ${permission.replace(/\*:\/\/|\*\//g, '')}`;
+const permissions = [...(manifest.permissions || []), ...(manifest.host_permissions || []).map(() => 'hosts')];
+$('permissions-list').replaceChildren(...[...new Set(permissions)].map((permission) => {
+  const [iconName, label] = permission === 'hosts'
+    ? ['external', 'Accès aux sites visités']
+    : PERMISSION_LABELS[permission] || ['info', permission];
+  const row = el('div', 'row');
+  const badge = el('span', 'row-icon');
+  badge.appendChild(icon(iconName));
+  const text = el('span', 'row-text');
+  text.append(el('span', 'row-label wrap', label), el('span', 'row-desc mono', permission === 'hosts' ? '<all_urls>' : permission));
+  row.append(badge, text);
+  return row;
+}));
 
-                const el = document.createElement('div');
-                el.className = 'perm-item';
-                el.innerHTML = `<svg class="perm-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>${formatted}</span>`;
-                permissionsList.appendChild(el);
-            });
-        } else if (permissionsList) {
-            permissionsList.innerHTML = '<div class="empty-message">Aucune permission requise</div>';
-        }
+// Avatar indisponible (hors ligne) : on retombe sur la marque.
+$('github-avatar').addEventListener('error', function () {
+  this.src = '../icons/brand/icon.svg';
+}, { once: true });
 
-        const authorElement = document.getElementById('extension-author');
-        if (authorElement && manifest.author) {
-            authorElement.textContent = manifest.author;
-        }
-
-    } catch (error) {
-        console.error('Erreur lors de la récupération du manifest:', error);
-        document.getElementById('manifest-error').style.display = 'block';
-    }
-
-    // Avatar fallback
-    const avatarImg = document.getElementById('github-avatar');
-    if (avatarImg) {
-        avatarImg.onerror = function () {
-            this.src = '../icons/icon48.png';
-        };
-    }
-
-    // Copyright year
-    const yearElement = document.getElementById('current-year');
-    if (yearElement) {
-        yearElement.textContent = new Date().getFullYear();
-    }
-
-    loadStats();
-    loadHistory();
+/* Chiffres */
+chrome.storage.local.get({ animeCache_v2: null, twitchRewardStats: null }, ({ animeCache_v2: cache, twitchRewardStats }) => {
+  setStat($('total-animes'), Object.keys(cache?.customUrls || {}).length);
+  setStat($('twitch-points'), twitchRewardStats?.pointsCollected);
+  setStat($('twitch-clicks'), twitchRewardStats?.clickCount);
 });
 
-function loadHistory() {
-    chrome.storage.local.get(['installDate', 'lastUpdateDate'], function (result) {
-        if (result.installDate) {
-            document.getElementById('install-date').textContent = new Date(result.installDate).toLocaleDateString('fr-FR');
-        }
-        if (result.lastUpdateDate) {
-            document.getElementById('update-date').textContent = new Date(result.lastUpdateDate).toLocaleDateString('fr-FR');
-        } else if (result.installDate) {
-            document.getElementById('update-date').textContent = new Date(result.installDate).toLocaleDateString('fr-FR');
-        }
-    });
-
-    const now = Date.now();
-    chrome.storage.local.get(['installDate'], function (result) {
-        if (!result.installDate) {
-            chrome.storage.local.set({ installDate: now });
-            document.getElementById('install-date').textContent = new Date(now).toLocaleDateString('fr-FR');
-        }
-        chrome.storage.local.set({ lastUpdateDate: now });
-    });
-}
-
-function loadStats() {
-    chrome.storage.local.get(['animeCache'], function (result) {
-        const animeCache = result.animeCache || { notFound: {} };
-        const totalAnimes = Object.keys(animeCache.notFound || {}).length;
-        document.getElementById('total-animes').textContent = totalAnimes;
-
-        const topAnimesElement = document.getElementById('top-animes');
-        if (topAnimesElement && animeCache.notFound) {
-            const animeEntries = Object.entries(animeCache.notFound);
-
-            if (animeEntries.length > 0) {
-                animeEntries.sort((a, b) => (b[1].lastSearch || 0) - (a[1].lastSearch || 0));
-                animeEntries.slice(0, 3).forEach(([name, data]) => {
-                    const formatted = name.charAt(0).toUpperCase() + name.slice(1);
-                    const short = formatted.length > 30 ? formatted.substring(0, 27) + '...' : formatted;
-
-                    const el = document.createElement('div');
-                    el.className = 'list-item';
-                    el.innerHTML = `
-                        <span class="list-item-name">${short}</span>
-                        <span class="list-item-value">${data.lastSearch ? new Date(data.lastSearch).toLocaleDateString('fr-FR') : '-'}</span>
-                    `;
-                    topAnimesElement.appendChild(el);
-                });
-            } else {
-                topAnimesElement.innerHTML = '<div class="empty-message">Aucun anime en cache</div>';
-            }
-        }
-    });
-
-    chrome.storage.local.get(['twitchRewardStats'], function (result) {
-        const stats = result.twitchRewardStats || { pointsCollected: 0, clickCount: 0, channelStats: {} };
-
-        document.getElementById('twitch-points').textContent = formatNumber(stats.pointsCollected);
-        document.getElementById('twitch-clicks').textContent = formatNumber(stats.clickCount || 0);
-
-        const topChannelsElement = document.getElementById('top-channels');
-        if (topChannelsElement && stats.channelStats) {
-            const channelEntries = Object.entries(stats.channelStats);
-
-            if (channelEntries.length > 0) {
-                channelEntries.sort((a, b) => b[1].pointsCollected - a[1].pointsCollected);
-                channelEntries.slice(0, 3).forEach(([channel, data]) => {
-                    const el = document.createElement('div');
-                    el.className = 'list-item';
-                    el.innerHTML = `
-                        <span class="list-item-name">${channel}</span>
-                        <span class="list-item-value">${formatNumber(data.pointsCollected)} pts</span>
-                    `;
-                    topChannelsElement.appendChild(el);
-                });
-            } else {
-                topChannelsElement.innerHTML = '<div class="empty-message">Aucune chaîne visitée</div>';
-            }
-        }
-    });
-}
-
-function formatNumber(num) {
-    return new Intl.NumberFormat('fr-FR').format(num);
-}
-
-function resetAllData() {
-    if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données ? Cette action est irréversible.')) {
-        chrome.storage.local.clear(function () {
-            chrome.storage.sync.clear(function () {
-                alert('Toutes les données ont été effacées.');
-                window.location.reload();
-            });
-        });
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    const resetButton = document.getElementById('reset-all-data');
-    if (resetButton) {
-        resetButton.addEventListener('click', resetAllData);
-    }
+/* Dates d'installation et de mise à jour */
+chrome.storage.local.get(['installDate', 'lastUpdateDate'], (result) => {
+  const now = Date.now();
+  const formatDate = (ms) => new Date(ms).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const installDate = result.installDate || now;
+  if (!result.installDate) chrome.storage.local.set({ installDate: now });
+  $('install-date').textContent = formatDate(installDate);
+  $('update-date').textContent = formatDate(result.lastUpdateDate || installDate);
+  chrome.storage.local.set({ lastUpdateDate: now });
 });
+
+/* Réinitialiser demande deux clics : le premier transforme le bouton en question. */
+(function setupReset() {
+  const button = $('reset-all-data');
+  let armed = null;
+  button.addEventListener('click', () => {
+    if (!armed) {
+      flash(button, 'Vraiment tout effacer ?', 4000);
+      armed = setTimeout(() => { armed = null; }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    chrome.storage.local.clear(() => {
+      chrome.storage.sync.clear(() => window.location.reload());
+    });
+  });
+})();

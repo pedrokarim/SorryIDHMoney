@@ -9,146 +9,200 @@
  * que ce soit. Les vraies valeurs arrivent ensuite et remplacent l'instantané,
  * presque toujours à l'identique.
  */
-const SNAPSHOT_IDS = ['xposter-panneau', 'nav-xposter', 'browser-bridge-panel', 'nav-browser-bridge', 'dev-section'];
+const SNAPSHOT_IDS = ['xposter-panel', 'nav-xposter', 'browser-bridge-panel', 'nav-browser-bridge', 'dev-link', 'twitch-summary'];
 const SNAPSHOT_PREFIX = 'popupSnapshot:';
 
 function saveSnapshot(id) {
-    const node = document.getElementById(id);
-    if (!node) return;
-    try {
-        localStorage.setItem(SNAPSHOT_PREFIX + id, JSON.stringify({
-            display: node.style.display,
-            html: node.innerHTML,
-        }));
-    } catch {
-        // Stockage plein ou refusé : on retombe sur l'ancien comportement.
-    }
+  const node = document.getElementById(id);
+  if (!node) return;
+  try {
+    localStorage.setItem(SNAPSHOT_PREFIX + id, JSON.stringify({
+      hidden: node.hidden,
+      html: node.innerHTML,
+    }));
+  } catch {
+    // Stockage plein ou refusé : on retombe sur l'ancien comportement.
+  }
 }
 
 (function restoreSnapshots() {
-    for (const id of SNAPSHOT_IDS) {
-        const node = document.getElementById(id);
-        if (!node) continue;
-        try {
-            const snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_PREFIX + id));
-            if (!snapshot) continue;
-            node.style.display = snapshot.display;
-            // Ce HTML vient de cette même page, à sa précédente ouverture.
-            node.innerHTML = snapshot.html;
-        } catch {
-            // Instantané illisible : on l'ignore.
-        }
+  for (const id of SNAPSHOT_IDS) {
+    const node = document.getElementById(id);
+    if (!node) continue;
+    try {
+      const snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_PREFIX + id));
+      if (!snapshot || typeof snapshot.hidden !== 'boolean') continue;
+      node.hidden = snapshot.hidden;
+      // Ce HTML vient de cette même page, à sa précédente ouverture.
+      node.innerHTML = snapshot.html;
+    } catch {
+      // Instantané illisible : on l'ignore.
     }
+  }
 })();
 
-document.addEventListener('DOMContentLoaded', function() {
-    const manifest = chrome.runtime.getManifest();
-    document.getElementById('extension-name').textContent = manifest.name;
-    document.getElementById('extension-version').textContent = 'v' + manifest.version;
+const { el, icon, formatNumber } = window.UI;
 
-    // Mode édition
-    document.getElementById('toggle-edit-mode').addEventListener('click', () => {
-        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-            if (tabs[0]) {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                    action: "toggleEditMode",
-                    enabled: true
-                });
-            }
-        });
-        window.close();
-    });
+function setBadge(node, kind, text) {
+  node.className = 'badge' + (kind ? ' ' + kind : '');
+  node.textContent = text;
+}
 
-    // Outils de test : visibles seulement en mode développeur.
-    chrome.storage.sync.get({ developerMode: false }, ({ developerMode }) => {
-        document.getElementById('dev-section').style.display = developerMode ? '' : 'none';
-        saveSnapshot('dev-section');
-    });
+/** Rafraîchit en continu tant que la popup reste ouverte. */
+function live(refresh, everyMs = 3000) {
+  refresh();
+  const timer = setInterval(refresh, everyMs);
+  window.addEventListener('pagehide', () => clearInterval(timer));
+  chrome.storage.onChanged.addListener(refresh);
+}
 
-    // Statut du bypass X — affiché uniquement si l'onglet actif est X/Twitter.
-    initXcomStatus();
+/* ── En-tête et pied ─────────────────────────────────────────────────────── */
+
+const manifest = chrome.runtime.getManifest();
+document.getElementById('version-tag').textContent = 'v' + manifest.version;
+
+chrome.storage.sync.get({ developerMode: false }, ({ developerMode }) => {
+  document.getElementById('dev-link').hidden = !developerMode;
+  saveSnapshot('dev-link');
 });
 
+chrome.storage.local.get({ twitchRewardStats: null }, ({ twitchRewardStats }) => {
+  const points = twitchRewardStats?.pointsCollected || 0;
+  document.getElementById('twitch-summary').textContent = points
+    ? `${formatNumber(points)} points récupérés`
+    : 'Points de chaîne récupérés';
+  saveSnapshot('twitch-summary');
+});
+
+/* ── Sur cet onglet ──────────────────────────────────────────────────────── */
+
+/*
+ * Les plateformes d'anime se reconnaissent aux motifs du manifeste : la
+ * popup ne propose la correction de fiche que là où le script tourne.
+ */
+const PLATFORMS = {
+  'scripts/mavanimes-content.js': { name: 'Mavanimes', key: null, icon: null },
+  'scripts/voiranime-content.js': { name: 'Voiranime', key: 'enableVoiranime', icon: 'voiranime.png' },
+  'scripts/crunchyroll-content.js': { name: 'Crunchyroll', key: 'enableCrunchyroll', icon: 'crunchyroll.png' },
+  'scripts/adkami-content.js': { name: 'ADKami', key: 'enableAdkami', icon: 'adkami.png' },
+  'scripts/adn-content.js': { name: 'ADN', key: 'enableAdn', icon: 'adn.webp' },
+  'scripts/gumgum-content.js': { name: 'Gum Gum Streaming', key: 'enableGumgum', icon: 'gumgum.png' },
+};
+
+/** Motif de correspondance Chrome (`https://www.site.com/*`) → RegExp. */
+function matchPatternToRegExp(pattern) {
+  const [, scheme, host, path] = pattern.match(/^(\*|https?):\/\/([^/]+)(\/.*)$/) || [];
+  if (!scheme) return null;
+  const esc = (s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  const schemeRe = scheme === '*' ? 'https?' : scheme;
+  const hostRe = host === '*' ? '[^/]+' : host.startsWith('*.') ? '(?:[^/]+\\.)?' + esc(host.slice(2)) : esc(host);
+  const pathRe = esc(path).replace(/\*/g, '.*');
+  return new RegExp(`^${schemeRe}://${hostRe}${pathRe}$`);
+}
+
+function findPlatform(url) {
+  for (const script of manifest.content_scripts || []) {
+    const js = (script.js || []).find((file) => PLATFORMS[file]);
+    if (!js) continue;
+    if ((script.matches || []).some((p) => matchPatternToRegExp(p)?.test(url))) return PLATFORMS[js];
+  }
+  return null;
+}
+
 function isXHost(host) {
-    return host === 'x.com' || host === 'twitter.com'
-        || host.endsWith('.x.com') || host.endsWith('.twitter.com');
+  return host === 'x.com' || host === 'twitter.com'
+    || host.endsWith('.x.com') || host.endsWith('.twitter.com');
 }
 
-function initXcomStatus() {
-    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-        const tab = tabs && tabs[0];
-        if (!tab || !tab.url) return;
+chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+  const tab = tabs && tabs[0];
+  if (!tab || !tab.url) return;
+  let url;
+  try { url = new URL(tab.url); } catch { return; }
 
-        let host;
-        try { host = new URL(tab.url).hostname; } catch { return; }
-        if (!isXHost(host)) return;
+  const section = document.getElementById('tab-section');
+  document.getElementById('tab-host').textContent = url.hostname.replace(/^www\./, '');
 
-        const card = document.getElementById('xcom-status');
-        const badge = document.getElementById('xcom-status-badge');
-        const hooksEl = document.getElementById('xcom-hooks');
-        card.style.display = '';
+  const platform = findPlatform(tab.url);
+  if (platform) {
+    section.hidden = false;
+    document.getElementById('platform-card').hidden = false;
+    document.getElementById('platform-name').textContent = platform.name;
+    const img = document.getElementById('platform-icon');
+    if (platform.icon) img.src = '../icons/platforms/' + platform.icon;
+    else img.replaceWith(icon('tv'));
 
-        chrome.tabs.sendMessage(tab.id, { action: 'getXcomStatus' }, function (res) {
-            if (chrome.runtime.lastError || !res) {
-                setBadge(badge, 'gray', 'Indisponible');
-                hooksEl.innerHTML = '<li class="muted">Recharge la page X pour activer le suivi.</li>';
-                return;
-            }
-            renderXcomStatus(res, badge, hooksEl);
-        });
+    const badge = document.getElementById('platform-state');
+    if (platform.key) {
+      chrome.storage.sync.get({ [platform.key]: true }, (cfg) => {
+        setBadge(badge, cfg[platform.key] ? 'ok' : '', cfg[platform.key] ? 'Actif' : 'Coupé');
+      });
+    } else {
+      setBadge(badge, 'ok', 'Actif');
+    }
+
+    document.getElementById('toggle-edit-mode').addEventListener('click', () => {
+      chrome.tabs.sendMessage(tab.id, { action: 'toggleEditMode', enabled: true }, () => void chrome.runtime.lastError);
+      window.close();
     });
-}
+  }
 
-function renderXcomStatus(res, badge, hooksEl) {
+  if (isXHost(url.hostname)) {
+    section.hidden = false;
+    showXcomStatus(tab);
+  }
+});
+
+/* Statut du contournement « contenu sensible » sur X. */
+function showXcomStatus(tab) {
+  const card = document.getElementById('xcom-status');
+  const badge = document.getElementById('xcom-badge');
+  const detail = document.getElementById('xcom-detail');
+  const hooks = document.getElementById('xcom-hooks');
+  card.hidden = false;
+
+  chrome.tabs.sendMessage(tab.id, { action: 'getXcomStatus' }, (res) => {
+    hooks.replaceChildren();
+    if (chrome.runtime.lastError || !res) {
+      setBadge(badge, '', 'Indisponible');
+      detail.textContent = 'Recharge la page X pour activer le suivi.';
+      return;
+    }
     if (!res.moduleEnabled) {
-        setBadge(badge, 'gray', 'Désactivé');
-        hooksEl.innerHTML = '<li class="muted">Module X désactivé dans les paramètres.</li>';
-        return;
+      setBadge(badge, '', 'Coupé');
+      detail.textContent = 'Module désactivé dans les paramètres.';
+      return;
     }
     if (!res.active) {
-        setBadge(badge, 'warn', 'En attente');
-        hooksEl.innerHTML = '<li class="muted">En attente du chargement de la page…</li>';
-        return;
+      setBadge(badge, 'warn', 'En attente');
+      detail.textContent = 'Chargement de la page…';
+      return;
     }
-
-    setBadge(badge, res.status === 'ok' ? 'ok' : 'err', res.status === 'ok' ? 'Actif' : 'Erreur');
-
-    const hooks = (res.hooks && res.hooks.length)
-        ? res.hooks
-        : ['__INITIAL_STATE__', 'Object.assign', 'JSON.parse'];
-    hooksEl.innerHTML = hooks
-        .map((h) => `<li><span class="hook-dot"></span>${escapeHtml(h)}</li>`)
-        .join('');
+    const ok = res.status === 'ok';
+    setBadge(badge, ok ? 'ok' : 'err', ok ? 'Actif' : 'Erreur');
+    detail.textContent = ok ? 'Les publications masquées sont dévoilées.' : 'Un point d’accroche a échoué.';
+    const list = res.hooks && res.hooks.length ? res.hooks : ['__INITIAL_STATE__', 'Object.assign', 'JSON.parse'];
+    hooks.replaceChildren(...list.map((name) => {
+      const li = el('li');
+      li.append(el('span', 'dot ok'), el('span', 'mono truncate', name));
+      return li;
+    }));
+  });
 }
 
-function setBadge(el, cls, text) {
-    el.className = 'status-badge ' + cls;
-    el.textContent = text;
-}
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-    ));
-}
-
-/* ── Publication X : etat du pont et historique ────────────────────────────
+/* ── Publication X : état du pont et dernières publications ────────────────
  *
- * Le panneau reste cache si le module est decoche : une extension qui affiche
+ * Le panneau reste caché si le module est décoché : une extension qui affiche
  * en permanence des rubriques inactives finit par ne plus rien dire.
  *
- * « Connecte » se deduit de la date du dernier echange reussi, pas d'un
- * booleen : si le serveur local s'arrete sans prevenir, un booleen resterait
- * a vrai. Au-dela de deux tours de sonde sans nouvelles, on considere que le
- * pont est tombe.
+ * « Connecté » se déduit de la date du dernier échange réussi, pas d'un
+ * booléen : si le serveur local s'arrête sans prévenir, un booléen resterait
+ * à vrai. Au-delà de deux tours de sonde sans nouvelles, le pont est tombé.
  */
-(function panneauXPoster() {
-  const DELAI_PERTE = 150000; // 2 tours de sonde + marge
-
-  const panneau = document.getElementById('xposter-panneau');
-  if (!panneau) return;
-
-  const ETATS = {
+(function xposterPanel() {
+  const LOST_AFTER_MS = 150000; // 2 tours de sonde + marge
+  // Les valeurs d'`etat` sont celles du stockage (module XPoster).
+  const STATES = {
     'en attente': ['warn', 'programmé'],
     prepare: ['ok', 'préparé'],
     publie: ['ok', 'publié'],
@@ -157,89 +211,57 @@ function escapeHtml(s) {
     'confie a X': ['ok', 'chez X'],
   };
 
-  const quand = (ms) => {
+  const formatWhen = (ms) => {
     const d = new Date(ms);
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) +
-           ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+      ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
-  function rendre(cfg, local) {
-    dessiner(cfg, local);
-    // L etat rendu sert de point de depart a la prochaine ouverture.
-    saveSnapshot('xposter-panneau');
+  function render(cfg, local) {
+    const panel = document.getElementById('xposter-panel');
+    document.getElementById('nav-xposter').hidden = !cfg.enableXPoster;
+    panel.hidden = !cfg.enableXPoster;
+    if (cfg.enableXPoster) {
+      // Relus à chaque rendu : l'instantané reposé à l'ouverture a remplacé
+      // le contenu du panneau, les nœuds d'avant n'existent plus.
+      const badge = document.getElementById('xposter-badge');
+      const summary = document.getElementById('xposter-summary');
+      const recent = document.getElementById('xposter-recent');
+
+      const contact = local.xposterDernierContact || 0;
+      const alive = Date.now() - contact < LOST_AFTER_MS;
+      setBadge(badge, alive ? 'ok' : 'err', alive ? 'Pont connecté' : 'Pont absent');
+
+      const queue = local.xposterFile || [];
+      const waiting = queue.filter((p) => p.etat === 'en attente');
+      summary.textContent = alive
+        ? `${waiting.length} en attente · dernier échange ${formatWhen(contact)}`
+        : contact
+          ? `Hors ligne · dernier échange ${formatWhen(contact)}`
+          : 'Jamais connecté – le serveur local tourne-t-il ?';
+
+      const latest = [...queue]
+        .sort((a, b) => (b.execute || b.quand || 0) - (a.execute || a.quand || 0))
+        .slice(0, 4);
+      recent.replaceChildren(...latest.map((p) => {
+        const [kind, label] = STATES[p.etat] || ['', p.etat];
+        const li = el('li');
+        li.title = `${formatWhen(p.execute || p.quand)}${p.rapport?.erreur ? ' – ' + p.rapport.erreur : ''}`;
+        li.append(el('span', 'badge ' + kind, label), el('span', 'truncate', (p.texte || '').replace(/\s+/g, ' ') || '(sans texte)'));
+        return li;
+      }));
+      if (!latest.length) recent.replaceChildren(el('li', 'muted', 'Aucune publication.'));
+    }
+    saveSnapshot('xposter-panel');
     saveSnapshot('nav-xposter');
   }
 
-  function dessiner(cfg, local) {
-    // Relus a chaque rendu : l instantane repose a l ouverture remplace le
-    // contenu du panneau, donc les noeuds d avant n existent plus.
-    const badge = document.getElementById('xposter-badge');
-    const resume = document.getElementById('xposter-resume');
-    const historique = document.getElementById('xposter-historique');
-
-    // Le lien vers l ecran dedie suit le meme sort que le panneau : inutile
-    // de proposer une page qui ne dira rien.
-    const lien = document.getElementById('nav-xposter');
-    if (lien) lien.style.display = cfg.enableXPoster ? '' : 'none';
-
-    if (!cfg.enableXPoster) { panneau.style.display = 'none'; return; }
-    panneau.style.display = '';
-
-    const contact = local.xposterDernierContact || 0;
-    const vivant = Date.now() - contact < DELAI_PERTE;
-
-    badge.className = 'status-badge ' + (vivant ? 'ok' : 'err');
-    badge.textContent = vivant ? 'pont connecté' : 'pont absent';
-
-    const file = local.xposterFile || [];
-    const attente = file.filter((p) => p.etat === 'en attente');
-
-    resume.textContent = vivant
-      ? `${attente.length} en attente · dernier échange ${quand(contact)}`
-      : contact
-        ? `hors ligne · dernier échange ${quand(contact)}`
-        : 'jamais connecté — le serveur local tourne-t-il ?';
-
-    historique.innerHTML = '';
-    const recentes = [...file]
-      .sort((a, b) => (b.execute || b.quand || 0) - (a.execute || a.quand || 0))
-      .slice(0, 6);
-
-    if (!recentes.length) {
-      const li = document.createElement('li');
-      li.textContent = 'aucune publication';
-      li.style.opacity = '.6';
-      historique.appendChild(li);
-      return;
-    }
-
-    for (const p of recentes) {
-      const [classe, libelle] = ETATS[p.etat] || ['gray', p.etat];
-      const li = document.createElement('li');
-      const extrait = (p.texte || '').replace(/\s+/g, ' ').slice(0, 42);
-      li.innerHTML =
-        `<span class="status-badge ${classe}" style="margin-right:6px">${libelle}</span>` +
-        `<span style="opacity:.8">${extrait}${extrait.length >= 42 ? '…' : ''}</span>`;
-      li.title = `${quand(p.execute || p.quand)}${p.rapport?.erreur ? ' — ' + p.rapport.erreur : ''}`;
-      historique.appendChild(li);
-    }
-  }
-
-  function rafraichir() {
+  live(() => {
     chrome.storage.sync.get({ enableXPoster: false }, (cfg) => {
-      chrome.storage.local.get({ xposterDernierContact: 0, xposterFile: [] }, (local) => {
-        rendre(cfg, local);
-      });
+      chrome.storage.local.get({ xposterDernierContact: 0, xposterFile: [] }, (local) => render(cfg, local));
     });
-  }
-
-  rafraichir();
-  // La popup reste ouverte pendant qu'on la regarde : on suit l'etat en direct.
-  const minuterie = setInterval(rafraichir, 3000);
-  window.addEventListener('unload', () => clearInterval(minuterie));
-  chrome.storage.onChanged.addListener(rafraichir);
+  });
 })();
-
 
 /* ── Pont navigateur : état du pont et dernières lectures ──────────────────
  *
@@ -254,60 +276,42 @@ function escapeHtml(s) {
     inspect: 'inspection', storage: 'stockage', fetch: 'requête', open: 'ouverture',
     close: 'fermeture', tabs: 'onglets',
   };
-
-  const panel = document.getElementById('browser-bridge-panel');
-  if (!panel) return;
-
   const formatTime = (ms) => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
   function render(cfg, local) {
-    const link = document.getElementById('nav-browser-bridge');
-    link.style.display = cfg.enableBrowserBridge ? '' : 'none';
-    panel.style.display = cfg.enableBrowserBridge ? '' : 'none';
-    if (!cfg.enableBrowserBridge) return;
+    const panel = document.getElementById('browser-bridge-panel');
+    document.getElementById('nav-browser-bridge').hidden = !cfg.enableBrowserBridge;
+    panel.hidden = !cfg.enableBrowserBridge;
+    if (cfg.enableBrowserBridge) {
+      const badge = document.getElementById('browser-bridge-badge');
+      const summary = document.getElementById('browser-bridge-summary');
+      const recent = document.getElementById('browser-bridge-recent');
 
-    const badge = document.getElementById('browser-bridge-badge');
-    const summary = document.getElementById('browser-bridge-summary');
-    const recent = document.getElementById('browser-bridge-recent');
+      const alive = Date.now() - local.browserBridgeLastContact < LOST_AFTER_MS;
+      setBadge(badge, alive ? 'ok' : '', alive ? 'Pont connecté' : 'Pont absent');
 
-    const contact = local.browserBridgeLastContact;
-    const alive = Date.now() - contact < LOST_AFTER_MS;
-    badge.className = 'status-badge ' + (alive ? 'ok' : 'gray');
-    badge.textContent = alive ? 'pont connecté' : 'pont absent';
+      const history = local.browserBridgeHistory;
+      summary.textContent = history.length
+        ? `${history.length} ordre(s) au journal · dernier à ${formatTime(history[0].at)}`
+        : "Aucune lecture pour l'instant.";
 
-    const history = local.browserBridgeHistory;
-    summary.textContent = history.length
-      ? `${history.length} ordre(s) au journal · dernier à ${formatTime(history[0].at)}`
-      : "aucune lecture pour l'instant";
-
-    recent.replaceChildren();
-    for (const entry of history.slice(0, 4)) {
-      const li = document.createElement('li');
-      const state = document.createElement('span');
-      state.className = 'status-badge ' + (entry.ok ? 'ok' : 'err');
-      state.style.marginRight = '6px';
-      state.textContent = LABELS[entry.action] || entry.action;
-      const where = document.createElement('span');
-      where.style.cssText = 'opacity:.8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-      where.textContent = entry.host || '–';
-      li.title = entry.ok ? entry.summary : entry.error;
-      li.append(state, where);
-      recent.appendChild(li);
+      recent.replaceChildren(...history.slice(0, 4).map((entry) => {
+        const li = el('li');
+        li.title = entry.ok ? entry.summary : entry.error;
+        li.append(
+          el('span', 'badge ' + (entry.ok ? 'ok' : 'err'), LABELS[entry.action] || entry.action),
+          el('span', 'truncate', entry.host || '–'),
+        );
+        return li;
+      }));
     }
+    saveSnapshot('browser-bridge-panel');
+    saveSnapshot('nav-browser-bridge');
   }
 
-  function refresh() {
+  live(() => {
     chrome.storage.sync.get({ enableBrowserBridge: false }, (cfg) => {
-      chrome.storage.local.get({ browserBridgeLastContact: 0, browserBridgeHistory: [] }, (local) => {
-        render(cfg, local);
-        saveSnapshot('browser-bridge-panel');
-        saveSnapshot('nav-browser-bridge');
-      });
+      chrome.storage.local.get({ browserBridgeLastContact: 0, browserBridgeHistory: [] }, (local) => render(cfg, local));
     });
-  }
-
-  refresh();
-  const timer = setInterval(refresh, 3000);
-  window.addEventListener('unload', () => clearInterval(timer));
-  chrome.storage.onChanged.addListener(refresh);
+  });
 })();

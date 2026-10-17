@@ -1,73 +1,106 @@
-/* Écran dédié au pont navigateur.
-   Complète twitch-stats.css, dont on reprend le cadre et les compteurs. */
+/* Pont navigateur. Tout le reste vient de base.css. */
 
-.bb-visually-hidden {
-  position: absolute; width: 1px; height: 1px; overflow: hidden;
-  clip-path: inset(50%); white-space: nowrap;
+.stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.bb-status {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px; border-radius: 8px;
-  background: #fff; border: 1px solid #eee; margin-bottom: 12px;
+.toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
 }
-.bb-dot { width: 11px; height: 11px; border-radius: 50%; background: #b0b6bd; flex: 0 0 auto; }
-.bb-dot.alive { background: #3fb950; box-shadow: 0 0 0 4px rgba(63, 185, 80, .18); }
-.bb-dot.dead  { background: #e5534b; box-shadow: 0 0 0 4px rgba(229, 83, 75, .16); }
 
-.bb-status-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.bb-status-text strong { font-size: 13px; }
-.bb-status-text span { font-size: 11.5px; color: #718096; }
-
-.bb-icon-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; flex: 0 0 auto; padding: 0;
-  border: 1px solid #e2e2e2; border-radius: 6px;
-  background: #fff; color: #555; cursor: pointer;
+.toolbar .select {
+  flex: 0 1 140px;
+  min-width: 0;
 }
-.bb-icon-btn:hover { border-color: var(--primary); color: var(--primary); }
-.bb-icon-btn:disabled { opacity: .4; cursor: default; border-color: #e2e2e2; color: #555; }
-.bb-icon-btn.confirm { width: auto; padding: 0 9px; font-size: 11.5px; font-weight: 600; border-color: var(--danger-dark); color: var(--danger-dark); }
 
-.bb-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
-/* base.css donne 16px et une largeur pleine à tous les champs : trop gros ici. */
-.bb-toolbar select, .bb-toolbar input[type="text"] {
-  height: 28px; padding: 0 8px; font-size: 12px; border-radius: 6px;
+.toolbar .search {
+  flex: 1;
 }
-.bb-toolbar select { width: 150px; flex: 0 0 auto; }
-.bb-toolbar input[type="text"] { flex: 1; min-width: 0; width: auto; }
 
-.bb-list { display: flex; flex-direction: column; background: #fff; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
-
-.bb-row {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 7px 10px; border: 0; background: none; text-align: left;
-  font: inherit; font-size: 12px; color: #333; cursor: pointer;
+.log-row {
+  font-size: var(--fs-sm);
+  min-height: 40px;
 }
-.bb-row + .bb-row, .bb-detail + .bb-row { border-top: 1px solid #f0f0f0; }
-.bb-row:hover { background: rgba(128, 90, 213, .05); }
-.bb-row[aria-expanded="true"] { background: rgba(128, 90, 213, .07); }
 
-.bb-time { flex: 0 0 auto; width: 74px; color: #999; font-size: 11px; font-variant-numeric: tabular-nums; }
-.bb-badge {
-  flex: 0 0 auto; font-size: 10px; font-weight: 700; padding: 2px 7px;
-  border-radius: 999px; background: rgba(128, 90, 213, .12); color: var(--primary-dark);
+.log-row[aria-expanded="true"] {
+  background: var(--surface-2);
 }
-.bb-badge.failed { background: rgba(244, 67, 54, .12); color: var(--danger-dark); }
-.bb-where { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bb-where em { font-style: normal; color: #999; }
-.bb-summary { flex: 0 0 auto; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #718096; font-size: 11px; }
 
-.bb-detail { padding: 8px 10px 10px 92px; background: #fafafa; border-top: 1px solid #f0f0f0; font-size: 11.5px; }
-.bb-detail dl { display: grid; grid-template-columns: 70px 1fr; gap: 3px 8px; margin: 0; }
-.bb-detail dt { color: #999; }
-.bb-detail dd { margin: 0; overflow-wrap: anywhere; }
-.bb-detail dd.error { color: var(--danger-dark); }
-.bb-detail img { display: block; max-width: 100%; margin-top: 8px; border: 1px solid #e6e6e6; border-radius: 6px; }
+.log-time {
+  flex: 0 0 auto;
+  width: 62px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
 
-.bb-empty { padding: 22px 12px; text-align: center; color: #999; font-size: 12px; }
+.log-where {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-.bb-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px; font-size: 12px; color: #718096; }
-.bb-pager[hidden] { display: none; }
+.log-where em {
+  font-style: normal;
+  color: var(--text-faint);
+}
 
-.bb-note { font-size: 11px; color: #999; margin: 14px 2px 0; line-height: 1.5; }
+.log-summary {
+  flex: 0 1 auto;
+  max-width: 34%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+.log-detail {
+  padding: 4px 14px 12px;
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  min-width: 0;
+}
+
+.rows > .log-detail {
+  border-top: 0;
+}
+
+.log-detail dl {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 3px 10px;
+}
+
+.log-detail dt {
+  color: var(--text-faint);
+}
+
+.log-detail dd {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.log-detail dd.error {
+  color: var(--danger);
+}
+
+.log-detail img {
+  max-width: 100%;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+/* Dans la popup, l'heure seule suffit : on garde la place pour l'adresse. */
+@media (max-width: 599px) {
+  .log-summary {
+    display: none;
+  }
+}
