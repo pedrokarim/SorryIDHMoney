@@ -388,7 +388,6 @@ Après modification, recharger l’extension depuis `chrome://extensions`.
 - **AniList est la source de vérité** pour les données anime
 - Toute nouvelle plateforme doit avoir son toggle dans les options, vérifié en début de `main()`
 - `manifest.json` étant *gitignored*, toujours mettre à jour `manifest.example.json` en parallèle
-- Les commits ne contiennent jamais de `Co-Authored-By`
 
 > 📖 **[`AGENTS.md`](AGENTS.md)** documente le processus complet d’ajout d’une plateforme de
 > streaming, étape par étape (inspection du DOM, logo, content script, manifest, toggle).

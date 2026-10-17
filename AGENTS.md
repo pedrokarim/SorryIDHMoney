@@ -114,7 +114,6 @@ qui fait apparaître « Sur cet onglet » et la correction de fiche dans la popu
 
 ## Conventions
 
-- Les commits ne contiennent jamais de `Co-Authored-By`
 - `manifest.json` est gitignored — toujours mettre à jour `manifest.example.json` en parallèle
 - Les content scripts loguent avec le préfixe `[NomPlateforme]`
 - AniList est la source de vérité pour les données anime
