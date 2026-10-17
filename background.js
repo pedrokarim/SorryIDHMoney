@@ -424,6 +424,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         height: 400
       });
       return false;
+    case "openTab": {
+      // Un onglet ouvert par l extension n est pas une pop-up de la page :
+      // uBlock Origin ne le bloque pas, contrairement a window.open.
+      let target;
+      try {
+        target = new URL(message.url);
+      } catch {
+        return false;
+      }
+      if (target.protocol !== "https:" && target.protocol !== "http:") return false;
+      const createProps = { url: target.href, active: true };
+      if (sender.tab) {
+        createProps.windowId = sender.tab.windowId;
+        createProps.index = sender.tab.index + 1;
+      }
+      chrome.tabs.create(createProps);
+      return false;
+    }
     case "openAnimeManager":
       const searchTerm = message.searchTerm || '';
       const url = chrome.runtime.getURL(`interfaces/anime-manager.html${searchTerm ? `?highlight=${encodeURIComponent(searchTerm)}` : ''}`);

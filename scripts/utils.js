@@ -8,6 +8,20 @@ let popoverElement = null;
 let popoverOpen = false;
 let popoverAnchorSite = null;
 
+/**
+ * Ouvre un lien dans un nouvel onglet via le service worker.
+ * Un window.open depuis la page est vu comme une pop-up par les bloqueurs
+ * (uBlock Origin), alors qu'un onglet créé par l'extension ne l'est pas.
+ */
+export function openLinkInNewTab(url) {
+  try {
+    chrome.runtime.sendMessage({ action: "openTab", url });
+  } catch {
+    // Contexte de l'extension invalidé (rechargement) : repli sur la page.
+    window.open(url, "_blank");
+  }
+}
+
 export function addCustomButton(site, link, options = {}) {
   const { openInNewTab = false, styles = {} } = options;
 
@@ -49,7 +63,11 @@ export function addCustomButton(site, link, options = {}) {
   element.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
-    window.open(link, openInNewTab ? "_blank" : "_self");
+    if (openInNewTab) {
+      openLinkInNewTab(link);
+    } else {
+      window.open(link, "_self");
+    }
   });
 
   document.body.appendChild(element);
@@ -706,6 +724,11 @@ function createInfoPopover(anchorElement, animeData) {
       fontWeight: "600",
       textDecoration: "none",
       transition: "background-color 0.15s",
+    });
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openLinkInNewTab(href);
     });
     a.addEventListener("mouseenter", () => a.style.backgroundColor = hoverBg);
     a.addEventListener("mouseleave", () => a.style.backgroundColor = bg);
